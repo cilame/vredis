@@ -7,7 +7,7 @@ import time
 import defaults
 import common
 
-# 作为主控部分，这里一般是以本机作为 redis 服务器来使用。
+
 class Worker(common.Initer):
 
     def __init__(self, 
