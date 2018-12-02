@@ -1,6 +1,7 @@
 import redis
 from threading import Thread, RLock
-
+import socket
+import time
 
 # 需要 “可配置” 的能够使用 redis 连接的类
 # master、sender、worker 都需要用到的一个类
@@ -42,6 +43,7 @@ class Initer:
         for i in kw:
             if i in d:
                 d[i] = kw[i]
+
         return redis.StrictRedis(**d)
 
 

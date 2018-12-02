@@ -3,9 +3,11 @@ import redis
 from threading import Thread, RLock
 import json
 import time
+import queue
 
 import defaults
 import common
+
 
 
 class Worker(common.Initer):
@@ -21,7 +23,12 @@ class Worker(common.Initer):
 
         self.lock           = RLock()
         self.pub            = self.rds.pubsub()
-        self.pub.subscribe(defaults.VSCRAPY_PUBLISH)
+        self.pub.subscribe(defaults.VSCRAPY_PUBLISH_WORKER)
+
+        self.local_task     = queue.Queue()
+        self.spiderid       = self.rds.hincrby(defaults.VSCRAPY_SPIDER, defaults.VSCRAPY_SPIDER_ID)
+
+        self.tasklist       = set()
 
     @classmethod
     def from_settings(cls, **kw):
@@ -39,60 +46,88 @@ class Worker(common.Initer):
         return cls(rds=rds,**d)
 
 
+    # 检查链接状态
+    def check_connect(self, taskid):
+        rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
+        return bool(self.rds.pubsub_numsub(rname)[0][1])
 
+    @staticmethod
+    def disassemble_func(func,stop=None):
+        def _disassemble(*a,**kw):
+            return func,a,kw,stop
+        return _disassemble
+
+    # 开始任务
+    def status_task(self, spiderid, taskid, status=None):
+        if status is None or status.lower() not in ['start','run','stop']:
+            raise "none init status. or status not in ['start','run','stop']"
+
+        if status =='start':
+            _status = 'start'
+            _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
+            self.tasklist.add(taskid)
+        if status =='run':   
+            _status = 'run'
+            _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
+        if status =='stop':  
+            _status = 'stop'
+            _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP, taskid)
+            self.tasklist.remove(taskid)
+        rdata = {
+            'spiderid': self.spiderid, 
+            'taskid': taskid, 
+            'status': _status
+        }
+        self.rds.lpush(_rname, json.dumps(rdata))
 
 
     def process_order(self):
-
-        self.spiderid = self.rds.hincrby(defaults.VSCRAPY_SPIDER, defaults.VSCRAPY_SPIDER_ID)
         print('start spider id:',self.spiderid)
-
-        # 配置编号的方式一类的处理
-        # 用以处理后续需要的分区管理之类的扩展
-        
         for i in self.pub.listen():
+            # 过滤订阅信息
             if i['type'] == 'subscribe': continue
-            order = eval(i['data'])
-            rname = '{}:{}'.format(defaults.VSCRAPY_SENDER, order['taskid'])
+            order       = json.loads(i['data'])
+            spiderid    = self.spiderid
+            taskid      = order['taskid']
+            # 过滤心跳包
+            if taskid == defaults.VSCRAPY_HEARTBEAT_TASK: continue
 
+            # 启动任务，发送启动信息
+            self.status_task(spiderid, taskid, 'start'); print(taskid, 'start success')
+            # 测试任务,后期需要根据 order 来实现任务处理
+            def test_task(num,spiderid=None,taskid=None,order=None):
+                for i in range(num):
+                    if self.check_connect(taskid):
+                        time.sleep(.6)
+                        self.status_task(spiderid,taskid,status='run')
+                        print('spiderid:',spiderid, ',taskid:',taskid, 'order',order)
+            # 给任务注入停止时执行的函数,放进线程执行队列
+            _stop = self.disassemble_func(self.status_task)(spiderid,taskid,'stop')
+            _task = self.disassemble_func(test_task, stop=_stop)(10,spiderid=spiderid,taskid=taskid,order=order)
+            self.local_task.put(_task)
 
-            # 发送开启状态
+    def process_heartbeat(self):
+        # 心跳包,保证接受任务的广播通道的存活
+        while True:
+            pack_order  = {'spiderid':self.spiderid, 'taskid':defaults.VSCRAPY_HEARTBEAT_TASK}
+            pubnum      = self.rds.publish(defaults.VSCRAPY_PUBLISH_WORKER, json.dumps(pack_order))
+            time.sleep(defaults.VSCRAPY_HEARTBEAT_TIME)
 
-
-            # TODO 处理任务（处理任务不应该在发送开启状态之前。
-            # 因为要考虑到状态变化情况，所以不能简单传一个字典回去就OK。后续考虑结构后再做修改。
-            # do something costime
-            # time.sleep(5) # 4 test
-
-
-            # 返回的数据强制规定成为一个 json 格式的数据，这样方便管理
-            # 后续也需要考虑各种执行状态的情况
-            rdata = {
-                'spider':self.spiderid, 
-                'taskid':order['taskid'], 
-                'status':'run success'
-            }
-
-            self.rds.lpush(rname, rdata)
-            print(order['taskid'], 'run success')
-
-
-
-            # 执行结束后
-            # 发送结束状态
-
-
-
-    def process_keep_alive(self):
-        # 主要是处理保持与广播的链接状态，一旦广播者断开链接
-        # 则进行对某些关键参数的修改
-        # 用于开发者对 debug 功能的检测处理
-        return
-
-
-
-
-
+    def process_run_task(self):
+        while True:    
+            func,args,kwargs,stop = self.local_task.get()
+            def task(func,args,kwargs,stop):
+                try:
+                    func(*args,**kwargs)
+                except Exception as e:
+                    print(e)
+                finally:
+                    taskid = kwargs.get('taskid')
+                    if stop != None:
+                        stop_func,args,kwargs, _ = stop
+                        stop_func(*args,**kwargs)
+                    print(taskid, 'stop success')
+            Thread(target=task,args=(func,args,kwargs,stop)).start()
 
 
 if __name__ == '__main__':
