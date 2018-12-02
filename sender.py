@@ -101,21 +101,22 @@ class Sender(common.Initer):
             stopinfo = self.from_pipline(self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo and stopinfo['taskid'] != defaults.VSCRAPY_HEARTBEAT_TASK:
                 idx += 1
+                over_break = 2
                 print('spider stop:',stopinfo)
             else:
                 over_break -= 1
                 if over_break == 0: # 防止 dead spider 影响停止
                     alivespidernum = self.rds.pubsub_numsub(defaults.VSCRAPY_PUBLISH_WORKER)[0][1]
-                    if idx == alivespidernum: 
+                    if idx == alivespidernum and alivespidernum < spidernum:
                         print('spidernum:',spidernum)
                         print('alivespidernum:',alivespidernum)
                         spidernum = alivespidernum
 
-    def process_connect(self):
+    def heartbeat_connect(self):
         # 用于通知任务发布者的连接状态,一旦这边执行完毕链接,广播连接数自动为零
         # 实现 DEBUG 状态下 spider 随时通过这边的关闭就停止
         ltime = 0
-        rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER,self.taskid)
+        rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, self.taskid)
         self.pub = self.rds.pubsub()
         self.pub.subscribe(rname)
         if ltime < time.time():
@@ -123,6 +124,11 @@ class Sender(common.Initer):
             ltime = time.time() + defaults.VSCRAPY_HEARTBEAT_TIME
         time.sleep(.15)
 
+    def wait(self):
+        rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, self.taskid)
+        print(self.rds.pubsub_numsub(rname))
+        while defaults.DEBUG and not bool(self.rds.pubsub_numsub(rname)[0][1]):
+            time.sleep(.15)
 
     def send(self, input_order):
         def check_order(order):
@@ -132,9 +138,9 @@ class Sender(common.Initer):
         # 获取任务id 并广播出去
         self.taskid = self.rds.hincrby(defaults.VSCRAPY_SENDER,defaults.VSCRAPY_SENDER_ID)
         self.order  = {'taskid':self.taskid, 'order':check_order(input_order)}
+        if defaults.DEBUG: self.start(prefix='heartbeat_connect'); self.wait() # 发送任务前需要等待心跳包先启动
         self.pubnum = self.rds.publish(defaults.VSCRAPY_PUBLISH_WORKER, json.dumps(self.order))
         self.send_status()
-                
 
 
 if __name__ == '__main__':

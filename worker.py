@@ -80,7 +80,6 @@ class Worker(common.Initer):
         }
         self.rds.lpush(_rname, json.dumps(rdata))
 
-
     def process_order(self):
         print('start spider id:',self.spiderid)
         for i in self.pub.listen():

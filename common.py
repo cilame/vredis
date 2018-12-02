@@ -47,8 +47,8 @@ class Initer:
         return redis.StrictRedis(**d)
 
 
-    def start(self):
-        # 让每一个 'process_' 名字开始的类都各以一个线程的方式打开。
+    def start(self, prefix='process_'):
+        # 通过函数前缀将函数以线程的方式打开。
         for proc in dir(self):
-            if proc.startswith('process_'):
+            if proc.startswith(prefix):
                 Thread(target = getattr(self,proc)).start()
