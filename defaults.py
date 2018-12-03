@@ -2,9 +2,6 @@
 VSCRAPY_SENDER = 'vscrapy:sender'
 VSCRAPY_SENDER_ID = 'id'
 
-
-
-
 # 用来对爬虫状态的执行进行控制的
 VSCRAPY_SENDER_START = 'vscrapy:sender:start'
 VSCRAPY_SENDER_RUN   = 'vscrapy:sender:run'
@@ -14,15 +11,7 @@ VSCRAPY_SENDER_TIMEOUT_RUN   = 2
 VSCRAPY_SENDER_TIMEOUT_STOP  = 3
 
 
-
-#
-# 在程序执行过程中，会以 vscrapy:sender: + taskid 的字符串作为管道列表来传送任务状态
-# eg. 23号任务提交后，任务执行结果会通过 redis 的列表名 vscrapy:sender:23 传回去，让 sender 知道
-# 上述方法会让 redis 的存储变得非常恶心
-# 考虑到这点后续将使用
-
-
-# type: hmap, id 自增作为 spider
+# type: hmap, id 自增作为 spiderid
 VSCRAPY_SPIDER = 'vscrapy:spider'
 VSCRAPY_SPIDER_ID = 'id'
 

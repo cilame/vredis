@@ -4,6 +4,7 @@ from threading import Thread, RLock
 import json
 import time
 import queue
+import traceback
 
 import defaults
 import common
@@ -32,12 +33,10 @@ class Worker(common.Initer):
 
     @classmethod
     def from_settings(cls, **kw):
-
         rds = cls.redis_from_settings(**kw)
         d = dict(
             spiderid = None
         )
-
         # 配置类参数
         for i in kw:
             if i in d:
@@ -52,13 +51,13 @@ class Worker(common.Initer):
         return bool(self.rds.pubsub_numsub(rname)[0][1])
 
     @staticmethod
-    def disassemble_func(func,stop=None):
+    def disassemble_func(func, err=None, stop=None):
         def _disassemble(*a,**kw):
-            return func,a,kw,stop
+            return func,a,kw,err,stop
         return _disassemble
 
     # 开始任务
-    def status_task(self, spiderid, taskid, status=None):
+    def status_task(self, spiderid, taskid, status=None, msg=None):
         if status is None or status.lower() not in ['start','run','stop']:
             raise "none init status. or status not in ['start','run','stop']"
 
@@ -76,7 +75,8 @@ class Worker(common.Initer):
         rdata = {
             'spiderid': self.spiderid, 
             'taskid': taskid, 
-            'status': _status
+            'status': _status,
+            'msg':msg
         }
         self.rds.lpush(_rname, json.dumps(rdata))
 
@@ -96,13 +96,17 @@ class Worker(common.Initer):
             # 测试任务,后期需要根据 order 来实现任务处理
             def test_task(num,spiderid=None,taskid=None,order=None):
                 for i in range(num):
-                    if self.check_connect(taskid):
+                    if self.check_connect(taskid): # 用来测试发送端是否断开连接的接口。
+                        # 用来测试错误日志信息得回传
+                        assert i<6 
                         time.sleep(.6)
                         self.status_task(spiderid,taskid,status='run')
                         print('spiderid:',spiderid, ',taskid:',taskid, 'order',order)
-            # 给任务注入停止时执行的函数,放进线程执行队列
-            _stop = self.disassemble_func(self.status_task)(spiderid,taskid,'stop')
-            _task = self.disassemble_func(test_task, stop=_stop)(10,spiderid=spiderid,taskid=taskid,order=order)
+            # 给任务注入错误回调，和停止回调的函数,放进线程执行队列
+            _stop  = self.disassemble_func(self.status_task)(spiderid,taskid,'stop')
+            _error = self.disassemble_func(self.status_task)(spiderid,taskid,'run')
+            _task  = self.disassemble_func(test_task, err=_error, stop=_stop)\
+                                          (10, spiderid=spiderid, taskid=taskid, order=order)
             self.local_task.put(_task)
 
     def process_heartbeat(self):
@@ -114,18 +118,22 @@ class Worker(common.Initer):
 
     def process_run_task(self):
         while True:    
-            func,args,kwargs,stop = self.local_task.get()
+            func,args,kwargs,err,stop = self.local_task.get()
+            taskid = kwargs.get('taskid')
             def task(func,args,kwargs,stop):
                 try:
                     func(*args,**kwargs)
                 except Exception as e:
-                    print(e)
+                    print('error taskid:',taskid)
+                    print(traceback.format_exc())
+                    if err is not None:
+                        err_func,args,kwargs,_, _ = err
+                        err_func(*args,**kwargs,msg=traceback.format_exc())
                 finally:
-                    taskid = kwargs.get('taskid')
-                    if stop != None:
-                        stop_func,args,kwargs, _ = stop
+                    print('stop taskid:',taskid)
+                    if stop is not None:
+                        stop_func,args,kwargs,_, _ = stop
                         stop_func(*args,**kwargs)
-                    print(taskid, 'stop success')
             Thread(target=task,args=(func,args,kwargs,stop)).start()
 
 

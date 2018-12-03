@@ -4,7 +4,6 @@ import socket
 import time
 
 # 需要 “可配置” 的能够使用 redis 连接的类
-# master、sender、worker 都需要用到的一个类
 # 直接传入字典进行实例化，或者通过 from_settings 这种方式来实现
 class Initer:
 

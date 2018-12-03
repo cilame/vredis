@@ -2,7 +2,6 @@ import redis
 
 import time
 import json
-import queue
 
 import defaults
 import common
