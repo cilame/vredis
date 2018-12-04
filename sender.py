@@ -17,7 +17,7 @@ class Sender(common.Initer):
         self.rds.ping() # 确认链接 redis。
 
         self.taskstop       = False
-        self.start_spider   = []
+        self.start_worker   = []
 
     @classmethod
     def from_settings(cls,**kw):
@@ -70,19 +70,19 @@ class Sender(common.Initer):
         # 状态记录: 开启状态的记录
         # TODO 零检查，如果结果是零就打印配置状态，否则直接开始检查任务状态，用的 redis 队列获取
         print('send order:', self.order)
-        print('receive spider num:', self.pubnum)
+        print('receive worker num:', self.pubnum)
         with self.lock:
-            start_spider = []
+            start_worker = []
             for _ in range(self.pubnum):
-                spider = self.from_pipline(self.taskid, 'start')
-                start_spider.append(spider)
-                print('spider start:',spider)
-        self.start_spider = start_spider
+                worker = self.from_pipline(self.taskid, 'start')
+                start_worker.append(worker)
+                print('worker start:',worker)
+        self.start_worker = start_worker
 
 
     def process_run(self):
-        spidernum = len(self.start_spider)
-        while True and not self.taskstop and spidernum:
+        workernum = len(self.start_worker)
+        while True and not self.taskstop and workernum:
             runinfo = self.from_pipline(self.taskid, 'run')
             if runinfo:
                 print('runinfo',runinfo)
@@ -90,26 +90,26 @@ class Sender(common.Initer):
 
 
     def process_stop(self):
-        spidernum = len(self.start_spider)
+        workernum = len(self.start_worker)
         idx = 0
         over_break = 1
-        while True and not self.taskstop and spidernum:
-            if idx == spidernum:
+        while True and not self.taskstop and workernum:
+            if idx == workernum:
                 self.taskstop = True
                 break
             stopinfo = self.from_pipline(self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
                 idx += 1
                 over_break = 1
-                print('spider stop:',stopinfo)
+                print('worker stop:',stopinfo)
             else:
                 over_break -= 1
-                if over_break == 0: # 防止 dead spider 影响停止
-                    alivespidernum = self.rds.pubsub_numsub(defaults.VSCRAPY_PUBLISH_WORKER)[0][1]
-                    if idx == alivespidernum and alivespidernum < spidernum:
-                        print('spidernum:',spidernum)
-                        print('alivespidernum:',alivespidernum)
-                        spidernum = alivespidernum
+                if over_break == 0: # 防止 dead worker 影响停止
+                    aliveworkernum = self.rds.pubsub_numsub(defaults.VSCRAPY_PUBLISH_WORKER)[0][1]
+                    if idx == aliveworkernum and aliveworkernum < workernum:
+                        print('workernum:',workernum)
+                        print('aliveworkernum:',aliveworkernum)
+                        workernum = aliveworkernum
 
     def wait_connect_pub(self):
         rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, self.taskid)

@@ -12,8 +12,8 @@ VSCRAPY_SENDER_TIMEOUT_STOP  = 3
 
 
 # type: hmap, id 自增作为 spiderid
-VSCRAPY_SPIDER = 'vscrapy:spider'
-VSCRAPY_SPIDER_ID = 'id'
+VSCRAPY_WORKER = 'vscrapy:worker'
+VSCRAPY_WORKER_ID = 'id'
 
 # type: publish
 VSCRAPY_PUBLISH_WORKER = 'vscrapy:publish:worker'

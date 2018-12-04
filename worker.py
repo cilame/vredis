@@ -15,10 +15,10 @@ class Worker(common.Initer):
 
     def __init__(self, 
             rds             = redis.StrictRedis(),
-            spiderid        = None
+            workerid        = None
         ):
         self.rds            = rds
-        self.spiderid       = spiderid
+        self.workerid       = workerid
 
         self.rds.ping()
 
@@ -27,7 +27,7 @@ class Worker(common.Initer):
         self.pub.subscribe(defaults.VSCRAPY_PUBLISH_WORKER)
 
         self.local_task     = queue.Queue()
-        self.spiderid       = self.rds.hincrby(defaults.VSCRAPY_SPIDER, defaults.VSCRAPY_SPIDER_ID)
+        self.workerid       = self.rds.hincrby(defaults.VSCRAPY_WORKER, defaults.VSCRAPY_WORKER_ID)
 
         self.tasklist       = set()
 
@@ -35,7 +35,7 @@ class Worker(common.Initer):
     def from_settings(cls, **kw):
         rds = cls.redis_from_settings(**kw)
         d = dict(
-            spiderid = None
+            workerid = None
         )
         # 配置类参数
         for i in kw:
@@ -57,7 +57,7 @@ class Worker(common.Initer):
         return _disassemble
 
     # 开始任务
-    def status_task(self, spiderid, taskid, status=None, msg=None):
+    def status_task(self, workerid, taskid, status=None, msg=None):
         if status is None or status.lower() not in ['start','run','stop']:
             raise "none init status. or status not in ['start','run','stop']"
 
@@ -73,7 +73,7 @@ class Worker(common.Initer):
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP, taskid)
             self.tasklist.remove(taskid)
         rdata = {
-            'spiderid': self.spiderid, 
+            'workerid': self.workerid, 
             'taskid': taskid, 
             'status': _status,
             'msg':msg
@@ -81,30 +81,30 @@ class Worker(common.Initer):
         self.rds.lpush(_rname, json.dumps(rdata))
 
     def process_order(self):
-        print('open spider id:',self.spiderid)
+        print('open worker id:',self.workerid)
         for i in self.pub.listen():
             # 过滤订阅信息
             if i['type'] == 'subscribe': continue
             order       = json.loads(i['data'])
-            spiderid    = self.spiderid
+            workerid    = self.workerid
             taskid      = order['taskid']
 
             # 启动任务，发送启动信息
-            self.status_task(spiderid, taskid, 'start'); print('start taskid:',taskid)
+            self.status_task(workerid, taskid, 'start'); print('start taskid:',taskid)
             # 测试任务,后期需要根据 order 来实现任务处理
-            def test_task(num,spiderid=None,taskid=None,order=None):
+            def test_task(num,workerid=None,taskid=None,order=None):
                 for i in range(num):
                     if self.check_connect(taskid): # 用来测试发送端是否断开连接的接口。
                         # 用来测试错误日志信息得回传
                         assert i<6 
                         time.sleep(.6)
-                        self.status_task(spiderid,taskid,status='run')
-                        print('spiderid:',spiderid, ',taskid:',taskid, 'order',order)
+                        self.status_task(workerid,taskid,status='run')
+                        print('workerid:',workerid, ',taskid:',taskid, 'order',order)
             # 给任务注入错误回调，和停止回调的函数,放进线程执行队列
-            _stop  = self.disassemble_func(self.status_task)(spiderid,taskid,'stop')
-            _error = self.disassemble_func(self.status_task)(spiderid,taskid,'run')
+            _stop  = self.disassemble_func(self.status_task)(workerid,taskid,'stop')
+            _error = self.disassemble_func(self.status_task)(workerid,taskid,'run')
             _task  = self.disassemble_func(test_task, err=_error, stop=_stop)\
-                                          (10, spiderid=spiderid, taskid=taskid, order=order)
+                                          (10, workerid=workerid, taskid=taskid, order=order)
             self.local_task.put(_task)
 
     def process_run_task(self):
