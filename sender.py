@@ -82,10 +82,12 @@ class Sender(common.Initer):
 
     def process_run(self):
         workernum = len(self.start_worker)
-        while True and not self.taskstop and workernum:
+        while True and workernum:
             runinfo = self.from_pipline(self.taskid, 'run')
             if runinfo:
                 print('runinfo',runinfo)
+            if self.taskstop and runinfo is None:
+                break
         print('all task stop.')
 
 

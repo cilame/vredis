@@ -44,7 +44,6 @@ class Worker(common.Initer):
 
         return cls(rds=rds,**d)
 
-
     # 检查链接状态
     def check_connect(self, taskid):
         rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
@@ -57,28 +56,26 @@ class Worker(common.Initer):
         return _disassemble
 
     # 开始任务
-    def status_task(self, workerid, taskid, status=None, msg=None):
-        if status is None or status.lower() not in ['start','run','stop']:
-            raise "none init status. or status not in ['start','run','stop']"
+    def send_to_pipline(self, workerid, taskid, status=None, msg=None):
+        if status is None or status.lower() not in ['start','run','stop','error']:
+            raise "none init status. or status not in ['start','run','stop','error']"
 
         if status =='start':
-            _status = 'start'
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
             self.tasklist.add(taskid)
-        if status =='run':   
-            _status = 'run'
+        if status =='run' or status=='error':
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
-        if status =='stop':  
-            _status = 'stop'
+        if status =='stop': 
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP, taskid)
             self.tasklist.remove(taskid)
         rdata = {
             'workerid': self.workerid, 
             'taskid': taskid, 
-            'status': _status,
+            'status': status,
             'msg':msg
         }
         self.rds.lpush(_rname, json.dumps(rdata))
+
 
     def process_order(self):
         print('open worker id:',self.workerid)
@@ -90,19 +87,21 @@ class Worker(common.Initer):
             taskid      = order['taskid']
 
             # 启动任务，发送启动信息
-            self.status_task(workerid, taskid, 'start'); print('start taskid:',taskid)
+            self.send_to_pipline(workerid, taskid, 'start'); print('start taskid:',taskid)
             # 测试任务,后期需要根据 order 来实现任务处理
             def test_task(num,workerid=None,taskid=None,order=None):
+                # import os
+                # os.system('pip install requests')
                 for i in range(num):
                     if self.check_connect(taskid): # 用来测试发送端是否断开连接的接口。
                         # 用来测试错误日志信息得回传
                         assert i<6 
                         time.sleep(.6)
-                        self.status_task(workerid,taskid,status='run')
+                        self.send_to_pipline(workerid,taskid,status='run')
                         print('workerid:',workerid, ',taskid:',taskid, 'order',order)
             # 给任务注入错误回调，和停止回调的函数,放进线程执行队列
-            _stop  = self.disassemble_func(self.status_task)(workerid,taskid,'stop')
-            _error = self.disassemble_func(self.status_task)(workerid,taskid,'run')
+            _stop  = self.disassemble_func(self.send_to_pipline)(workerid,taskid,'stop')
+            _error = self.disassemble_func(self.send_to_pipline)(workerid,taskid,'error')
             _task  = self.disassemble_func(test_task, err=_error, stop=_stop)\
                                           (10, workerid=workerid, taskid=taskid, order=order)
             self.local_task.put(_task)

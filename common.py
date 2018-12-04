@@ -38,6 +38,7 @@ class Initer:
             max_connections=None
         )
 
+        # 自己设定的参数，方便与默认参数区分开
         mysettings = dict(
             socket_timeout=30,
             socket_connect_timeout=30,
