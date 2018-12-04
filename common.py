@@ -38,13 +38,19 @@ class Initer:
             max_connections=None
         )
 
+        mysettings = dict(
+            socket_timeout=30,
+            socket_connect_timeout=30,
+            retry_on_timeout=True,
+        )
+        d.update(mysettings)
+
         # 配置 redis 链接参数
         for i in kw:
             if i in d:
                 d[i] = kw[i]
 
         return redis.StrictRedis(**d)
-
 
     def start(self, prefix='process_'):
         # 通过函数前缀将函数以线程的方式打开。

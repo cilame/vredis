@@ -92,15 +92,15 @@ class Sender(common.Initer):
     def process_stop(self):
         spidernum = len(self.start_spider)
         idx = 0
-        over_break = 2
+        over_break = 1
         while True and not self.taskstop and spidernum:
             if idx == spidernum:
                 self.taskstop = True
                 break
             stopinfo = self.from_pipline(self.taskid, 'stop')
-            if stopinfo and 'taskid' in stopinfo and stopinfo['taskid'] != defaults.VSCRAPY_HEARTBEAT_TASK:
+            if stopinfo and 'taskid' in stopinfo:
                 idx += 1
-                over_break = 2
+                over_break = 1
                 print('spider stop:',stopinfo)
             else:
                 over_break -= 1
@@ -111,21 +111,11 @@ class Sender(common.Initer):
                         print('alivespidernum:',alivespidernum)
                         spidernum = alivespidernum
 
-    def heartbeat_connect(self):
-        # 用于通知任务发布者的连接状态,一旦这边执行完毕链接,广播连接数自动为零
-        # 实现 DEBUG 状态下 spider 随时通过这边的关闭就停止
-        ltime = 0
+    def wait_connect_pub(self):
         rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, self.taskid)
         self.pub = self.rds.pubsub()
         self.pub.subscribe(rname)
-        if ltime < time.time():
-            self.rds.publish(rname,'heartbeat')
-            ltime = time.time() + defaults.VSCRAPY_HEARTBEAT_TIME
-        time.sleep(.15)
-
-    def wait(self):
-        rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, self.taskid)
-        print(self.rds.pubsub_numsub(rname))
+        self.rds.publish(rname,'heartbeat')
         while defaults.DEBUG and not bool(self.rds.pubsub_numsub(rname)[0][1]):
             time.sleep(.15)
 
@@ -137,7 +127,8 @@ class Sender(common.Initer):
         # 获取任务id 并广播出去
         self.taskid = self.rds.hincrby(defaults.VSCRAPY_SENDER,defaults.VSCRAPY_SENDER_ID)
         self.order  = {'taskid':self.taskid, 'order':check_order(input_order)}
-        if defaults.DEBUG: self.start(prefix='heartbeat_connect'); self.wait() # 发送任务前需要等待心跳包先启动
+        if defaults.DEBUG:
+            self.wait_connect_pub() # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
         self.pubnum = self.rds.publish(defaults.VSCRAPY_PUBLISH_WORKER, json.dumps(self.order))
         self.send_status()
 

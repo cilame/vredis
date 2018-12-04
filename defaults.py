@@ -15,11 +15,6 @@ VSCRAPY_SENDER_TIMEOUT_STOP  = 3
 VSCRAPY_SPIDER = 'vscrapy:spider'
 VSCRAPY_SPIDER_ID = 'id'
 
-
-# 由于 redis 库自带的广播链接问题,需要在这里设置一个心跳包来维持广播的存活
-VSCRAPY_HEARTBEAT_TIME = 60
-VSCRAPY_HEARTBEAT_TASK = -1
-
 # type: publish
 VSCRAPY_PUBLISH_WORKER = 'vscrapy:publish:worker'
 VSCRAPY_PUBLISH_SENDER = 'vscrapy:publish:sender'
