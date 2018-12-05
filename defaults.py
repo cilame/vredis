@@ -10,6 +10,8 @@ VSCRAPY_SENDER_TIMEOUT_START = 3
 VSCRAPY_SENDER_TIMEOUT_RUN   = 1
 VSCRAPY_SENDER_TIMEOUT_STOP  = 3
 
+# 处理在 sender 端同步log时出现断连接的 worker 超时处理次数
+VSCRAPY_OVER_BREAK = 2
 
 # type: hmap, id 自增作为 workerid
 VSCRAPY_WORKER = 'vscrapy:worker'

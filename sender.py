@@ -59,12 +59,10 @@ class Sender(common.Initer):
             rdata = None
         return rdata
 
-
     # 通过一个队列来接受状态回写
     def send_status(self):
         self.status_start()
         if defaults.DEBUG: self.start() # 开启debug状态将额外开启两个线程作为输出日志的同步
-
 
     def status_start(self):
         # 状态记录: 开启状态的记录
@@ -94,7 +92,7 @@ class Sender(common.Initer):
     def process_stop(self):
         workernum = len(self.start_worker)
         idx = 0
-        over_break = 1
+        over_break = defaults.VSCRAPY_OVER_BREAK
         while True and not self.taskstop and workernum:
             if idx == workernum:
                 self.taskstop = True
@@ -102,11 +100,11 @@ class Sender(common.Initer):
             stopinfo = self.from_pipline(self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
                 idx += 1
-                over_break = 1
+                over_break = defaults.VSCRAPY_OVER_BREAK
                 print('worker stop:',stopinfo)
             else:
                 over_break -= 1
-                if over_break == 0: # 防止 dead worker 影响停止
+                if over_break == 1: # 防止 dead worker 影响停止
                     aliveworkernum = self.rds.pubsub_numsub(defaults.VSCRAPY_PUBLISH_WORKER)[0][1]
                     if idx == aliveworkernum and aliveworkernum < workernum:
                         print('workernum:',workernum)

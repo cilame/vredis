@@ -8,8 +8,7 @@ import traceback
 
 import defaults
 import common
-
-
+from utils import hook_console
 
 class Worker(common.Initer):
 
@@ -21,6 +20,7 @@ class Worker(common.Initer):
         self.workerid       = workerid
 
         self.rds.ping()
+        hook_console()
 
         self.lock           = RLock()
         self.pub            = self.rds.pubsub()
@@ -28,8 +28,6 @@ class Worker(common.Initer):
 
         self.local_task     = queue.Queue()
         self.workerid       = self.rds.hincrby(defaults.VSCRAPY_WORKER, defaults.VSCRAPY_WORKER_ID)
-
-        self.tasklist       = set()
 
     @classmethod
     def from_settings(cls, **kw):
@@ -62,12 +60,10 @@ class Worker(common.Initer):
 
         if status =='start':
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
-            self.tasklist.add(taskid)
         if status =='run' or status=='error':
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
         if status =='stop': 
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP, taskid)
-            self.tasklist.remove(taskid)
         rdata = {
             'workerid': self.workerid, 
             'taskid': taskid, 
@@ -87,7 +83,7 @@ class Worker(common.Initer):
             taskid      = order['taskid']
 
             # 启动任务，发送启动信息
-            self.send_to_pipline(workerid, taskid, 'start'); print('start taskid:',taskid)
+            self.send_to_pipline(workerid, taskid, 'start')
             # 测试任务,后期需要根据 order 来实现任务处理
             def test_task(num,workerid=None,taskid=None,order=None):
                 # import os
@@ -111,19 +107,25 @@ class Worker(common.Initer):
             func,args,kwargs,err,stop = self.local_task.get()
             taskid = kwargs.get('taskid')
             def task(func,args,kwargs,err,stop):
+                # 为了使 stack 寻找时候定位当前的环境从而找到 taskid 来分割不同任务的日志环境
+                # 需要确保这里的 locals() 空间内拥有该函数名并且其余更深的环境没有该函数名字
+                # 具体实现详细见 utils 内的 hook 类的函数实现
+                __very_unique_function_name__ = func
                 try:
-                    func(*args,**kwargs)
+                    print('start taskid:',taskid)
+                    __very_unique_function_name__(*args,**kwargs)
                 except Exception as e:
                     print('error taskid:',taskid)
                     print(traceback.format_exc())
                     if err is not None:
-                        err_func,args,kwargs,_, _ = err
-                        err_func(*args,**kwargs,msg=traceback.format_exc())
+                        __very_unique_function_name__,args,kwargs,_, _ = err
+                        __very_unique_function_name__(*args,**kwargs,msg=traceback.format_exc())
                 finally:
                     print('stop taskid:',taskid)
+                    print(' ')
                     if stop is not None:
-                        stop_func,args,kwargs,_, _ = stop
-                        stop_func(*args,**kwargs)
+                        __very_unique_function_name__,args,kwargs,_, _ = stop
+                        __very_unique_function_name__(*args,**kwargs)
             Thread(target=task,args=(func,args,kwargs,err,stop)).start()
 
 
