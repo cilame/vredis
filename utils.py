@@ -36,11 +36,15 @@ class hook_stdout:
             if len(_text) == 1:
                 self.cache[taskid] = ''
                 with lock:
-                    __org_stdout__.write('[{}]'.format(taskid) + _text[0] + '\n')
+                    prefix = '[{}] '.format(taskid)
+                    _text_ = _text[0] + '\n'
+                    __org_stdout__.write(prefix + _text_)
             else:
                 self.cache[taskid] = _text[1]
                 with lock:
-                    __org_stdout__.write('[{}]'.format(taskid) + _text[0] + '\n')
+                    prefix = '[{}] '.format(taskid)
+                    _text_ = _text[0] + '\n'
+                    __org_stdout__.write(prefix + _text_)
 
     def flush(self):
         if self.keep_consolelog:
@@ -75,11 +79,15 @@ class hook_stderr:
             if len(_text) == 1:
                 self.cache[taskid] = ''
                 with lock:
-                    __org_stderr__.write(_text[0] + '\n')
+                    prefix = '[{}] '.format(taskid)
+                    _text_ = _text[0] + '\n'
+                    __org_stderr__.write(prefix + _text_)
             else:
                 self.cache[taskid] = _text[1]
                 with lock:
-                    __org_stderr__.write(_text[0] + '\n')
+                    prefix = '[{}] '.format(taskid)
+                    _text_ = _text[0] + '\n'
+                    __org_stderr__.write(prefix + _text_)
 
     def flush(self):
         if self.keep_consolelog:
