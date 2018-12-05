@@ -8,7 +8,7 @@ import traceback
 
 import defaults
 import common
-from utils import hook_console
+from utils import hook_console, _stdout, _stderr
 
 class Worker(common.Initer):
 
@@ -28,6 +28,8 @@ class Worker(common.Initer):
 
         self.local_task     = queue.Queue()
         self.workerid       = self.rds.hincrby(defaults.VSCRAPY_WORKER, defaults.VSCRAPY_WORKER_ID)
+
+        self.tasklist       = set()
 
     @classmethod
     def from_settings(cls, **kw):
@@ -59,6 +61,7 @@ class Worker(common.Initer):
             raise "none init status. or status not in ['start','run','stop','error']"
 
         if status =='start':
+            self.tasklist.add(taskid)
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
             print('start taskid:',taskid)
         if status =='run':
@@ -68,7 +71,8 @@ class Worker(common.Initer):
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
             print('error taskid:',taskid)
             print(msg)
-        if status =='stop': 
+        if status =='stop':
+            self.tasklist.remove(taskid)
             _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP, taskid)
             print('stop taskid:',taskid)
             print(' ')
@@ -140,6 +144,10 @@ class Worker(common.Initer):
                     if stop is not None:
                         stop_callback,a,kw,_,_,_ = stop
                         stop_callback(*a,**kw)
+                        with self.lock:
+                            if not self.tasklist:
+                                _stdout._clear_cache()
+                                _stderr._clear_cache()
             Thread(target=task,args=(func,args,kwargs,start,err,stop)).start()
 
 
