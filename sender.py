@@ -9,10 +9,8 @@ import common
 class Sender(common.Initer):
     def __init__(self,
             rds = redis.StrictRedis(),
-            pip_timeout = 3
         ):
         self.rds          = rds
-        self.pip_timeout  = pip_timeout
 
         self.rds.ping() # 确认链接 redis。
 
@@ -24,13 +22,12 @@ class Sender(common.Initer):
 
         rds = cls.redis_from_settings(**kw)
 
-        # 类内配置，修改时与 __init__ 内的参数同时修改
-        d = dict(
-            pip_timeout = 3
-        )
+        # 类内配置，后续需要增加动态修改的内容，实现动态配置某类参数
+        # 暂时觉得这里的配置之后都不太可能会被用到
+        d = dict()
+
         # 默认配置，修改时注意不重名就行，内部元素都是大写字母与下划线
         global defaults
-
         for i in kw:
             if i in d:
                 d[i] = kw[i]    
@@ -46,7 +43,7 @@ class Sender(common.Initer):
         if pip == 'start': 
             rname   = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
             timeout = defaults.VSCRAPY_SENDER_TIMEOUT_START
-        if pip == 'run'  : 
+        if pip == 'run': 
             rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN,   taskid)
             timeout = defaults.VSCRAPY_SENDER_TIMEOUT_RUN
         if pip == 'stop' : 
