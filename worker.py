@@ -105,11 +105,11 @@ class Worker(common.Initer):
     def process_run_task(self):
         while True:    
             func,args,kwargs,err,stop = self.local_task.get()
-            taskid = kwargs.get('taskid')
             def task(func,args,kwargs,err,stop):
                 # 为了使 stack 寻找时候定位当前的环境从而找到 taskid 来分割不同任务的日志环境
                 # 需要确保这里的 locals() 空间内拥有该函数名并且其余更深的环境没有该函数名字
                 # 具体实现详细见 utils 内的 hook 类的函数实现
+                taskid = kwargs.get('taskid')
                 __very_unique_function_name__ = func
                 try:
                     print('start taskid:',taskid)
