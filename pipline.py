@@ -33,8 +33,6 @@ class Valve:
         else:
             raise NotInDefaultsSetting
 
-
-
 if __name__ == '__main__':
     v = Valve(1,2)
     s = Valve(3,4)

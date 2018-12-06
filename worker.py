@@ -112,8 +112,6 @@ class Worker(common.Initer):
             taskid      = order['taskid']
             looper      = self.run_until_stop(taskid,workerid,order)
 
-
-
             # 测试任务,后期需要根据 order 来实现任务处理，目前先简单实现一个函数和一个异常
             # 用以测试一般任务执行回传和错误回传
             #====================================
@@ -127,7 +125,6 @@ class Worker(common.Initer):
                         time.sleep(.6)
                         print(i)
             #======================================
-
 
             
             test_task = looper(test_task)

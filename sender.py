@@ -108,6 +108,9 @@ class Sender(common.Initer):
                         print('aliveworkernum:',aliveworkernum)
                         workernum = aliveworkernum
 
+
+
+
     def wait_connect_pub(self):
         rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, self.taskid)
         self.pub = self.rds.pubsub()
@@ -118,7 +121,9 @@ class Sender(common.Initer):
 
     def send(self, input_order):
         def check_order(order):
-            # TODO 优先本地的 order 首次正确性验证
+            # TODO 优先本地的 order 首次正确性验证，强制需求 order 必须为字典形式
+            # 后续命令行处理时候传参更好一一对应处理
+            assert type(order) == dict
             return order
 
         # 获取任务id 并广播出去
