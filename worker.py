@@ -88,7 +88,7 @@ class Worker(common.Initer):
         self.rds.lpush(_rname, json.dumps(rdata))
 
 
-    def run_until_stop(self,taskid,workerid,order):
+    def connect_work_queue(self,_queue,taskid,workerid,order):
         def _task_func(task_func):
             def pack_task(*a,**kw):
                 # 给任务注入错误回调，和停止回调的函数,放进线程执行队列
@@ -97,7 +97,7 @@ class Worker(common.Initer):
                 _stop  = self.disassemble_func(self.send_to_pipline)(taskid,workerid,order,'stop')
                 _task  = self.disassemble_func(task_func, start=_start, err=_error, stop=_stop)\
                                               (*a,**kw)
-                self.local_task.put(_task)
+                _queue.put(_task)
             return pack_task
         return _task_func
 
@@ -110,7 +110,8 @@ class Worker(common.Initer):
             order       = json.loads(i['data'])
             workerid    = self.workerid
             taskid      = order['taskid']
-            looper      = self.run_until_stop(taskid,workerid,order)
+            task_looper = self.connect_work_queue(self.local_task,  taskid,workerid,order)
+            sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order)
 
             # 测试任务,后期需要根据 order 来实现任务处理，目前先简单实现一个函数和一个异常
             # 用以测试一般任务执行回传和错误回传
@@ -127,12 +128,12 @@ class Worker(common.Initer):
             #======================================
 
             
-            test_task = looper(test_task)
+            test_task = task_looper(test_task)
             test_task(10)
 
-    def _thread(self,local_task):
+    def _thread(self,_queue):
         while True:    
-            func,args,kwargs,start,err,stop = local_task.get()
+            func,args,kwargs,start,err,stop = _queue.get()
             def task(func,args,kwargs,start,err,stop):
                 # 为了使 stack 寻找时候定位当前的环境从而找到 taskid 来分割不同任务的日志环境
                 # 需要确保这里的 locals() 空间内拥有该函数名并且其余更深的环境没有该函数名字
@@ -165,8 +166,8 @@ class Worker(common.Initer):
             Thread(target=self._thread,args=(self.local_task,)).start()
 
     # 动态配置需额外开启另一条线程执行，防止线程池卡死时无法进行配置的情况。
-    def run_task_by_annotherthread(self):
-        for i in range(defaults.VSCRAPY_WORKER_SETTING_THREAD_NUM):
+    def process_run_set(self):
+        for i in range(defaults.VSCRAPY_WORKER_THREAD_SETTING_NUM):
             Thread(target=self._thread,args=(self.setting_task,)).start()
 
 if __name__ == '__main__':
