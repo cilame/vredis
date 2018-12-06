@@ -1,0 +1,2 @@
+class NotInDefaultsSetting(Exception):
+    pass

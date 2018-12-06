@@ -35,18 +35,13 @@ class stdhooker:
     def _write(self,taskid):
         if '\n' in self.cache[taskid]:
             _text = self.cache[taskid].split('\n',1)
-            if len(_text) == 1:
-                self.cache[taskid] = ''
-                with lock:
-                    prefix = '[{}] '.format(taskid)
-                    _text_ = _text[0] + '\n'
-                    self.__org_func__.write(prefix + _text_)
-            else:
-                self.cache[taskid] = _text[1]
-                with lock:
-                    prefix = '[{}] '.format(taskid)
-                    _text_ = _text[0] + '\n'
-                    self.__org_func__.write(prefix + _text_)
+            self.cache[taskid] = '' if len(_text) == 1 else _text[1]
+            prefix = '[{}] '.format(taskid)
+            _text_ = _text[0] + '\n'
+
+            # 管道可以架设在这里来实现回传
+            with lock: 
+                self.__org_func__.write(prefix + _text_)
 
     def flush(self):
         if self.keep_consolelog:

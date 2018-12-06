@@ -129,6 +129,19 @@ class Sender(common.Initer):
         self.pubnum = self.rds.publish(defaults.VSCRAPY_PUBLISH_WORKER, json.dumps(self.order))
         self.send_status()
 
+    def send_console(self, consoleline):
+        # 输送命令行执行的命令过去，或许有些程序需要使用控制台进行一些配置类的操作。
+        pass
+
+    def check_worker_status(self, workerid=None, feature=None):
+        # 通过id检查，某些工作端的状态，默认全部。一般过滤用 feature，不配置信息量会比较少
+        # 执行流程就是先检查存活状态，然后通过存活的线程决定下一步怎么处理
+        pass
+
+    def check_task_status(self, taskid=None, feature=None):
+        # 通过id列表来统计任务执行的状态，feature 过滤方式
+        pass
+
 
 if __name__ == '__main__':
     sender = Sender.from_settings(host='47.99.126.229',password='vilame')
