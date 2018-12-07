@@ -1,5 +1,70 @@
+import json
+
 from error import NotInDefaultsSetting
 import defaults
+
+
+
+
+# 收发函数的统一管理
+# 以下两个函数均服务于对 worker 端口信息回传的处理
+# 原本都是类内函数，但是为了统一管理和维护放在这里方便管道对应处理处理
+# 这里是发送端口，用于从 worker 发送到
+def send_to_pipline(cls, taskid, workerid, order, piptype=None, msg=None):
+    if piptype is None or piptype.lower() not in ['start','run','stop','error']:
+        raise "none init piptype. or piptype not in ['start','run','stop','error']"
+
+    if piptype =='start':
+        cls.tasklist.add(taskid)
+        _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
+        print('start taskid:',taskid)
+    if piptype =='run':
+        _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
+        print('run taskid:',taskid,' workerid:',workerid,' order',order)
+    if piptype =='error':
+        _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
+        print('error taskid:',taskid)
+        print(msg)
+    if piptype =='stop':
+        cls.tasklist.remove(taskid)
+        _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP, taskid)
+        print('stop taskid:',taskid)
+        print(' ')
+    rdata = {
+        'workerid': cls.workerid, 
+        'taskid': taskid, 
+        'piptype': piptype,
+        'msg':msg
+    }
+    cls.rds.lpush(_rname, json.dumps(rdata))
+
+# 这里是接收端口，服务于 sender 类，用于接收回传信息
+def from_pipline(cls, taskid, piptype=None):
+    if piptype is None or piptype not in ['start','run','stop']:
+        raise 'none init piptype name.'
+    if piptype == 'start': 
+        rname   = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
+        timeout = defaults.VSCRAPY_SENDER_TIMEOUT_START
+    if piptype == 'run': 
+        rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN,   taskid)
+        timeout = defaults.VSCRAPY_SENDER_TIMEOUT_RUN
+    if piptype == 'stop' : 
+        rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP,  taskid)
+        timeout = defaults.VSCRAPY_SENDER_TIMEOUT_STOP
+    try:
+        _, ret = cls.rds.brpop(rname, timeout)
+        rdata = json.loads(ret) # ret 必是一个 json 字符串。
+    except:
+        rdata = None
+    return rdata
+
+
+
+
+
+
+
+
 
 
 # 这里暂定有两个功能需要实现
@@ -32,6 +97,7 @@ class Valve:
             return value
         else:
             raise NotInDefaultsSetting
+
 
 if __name__ == '__main__':
     v = Valve(1,2)

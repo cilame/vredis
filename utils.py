@@ -1,9 +1,6 @@
 import sys
 import inspect
 
-from common import Initer # 锁是唯一的，从这里去拿即可
-lock = Initer.lock
-
 __org_stdout__ = sys.stdout
 __org_stderr__ = sys.stderr
 
@@ -40,8 +37,7 @@ class stdhooker:
             _text_ = _text[0] + '\n'
 
             # 管道可以架设在这里来实现回传
-            with lock: 
-                self.__org_func__.write(prefix + _text_)
+            self.__org_func__.write(prefix + _text_)
 
     def flush(self):
         if self.keep_consolelog:

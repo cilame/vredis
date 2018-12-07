@@ -9,7 +9,7 @@ import traceback
 import defaults
 import common
 from utils import hook_console, _stdout, _stderr
-from pipline import Valve
+from pipline import Valve, send_to_pipline
 
 class Worker(common.Initer):
 
@@ -18,7 +18,6 @@ class Worker(common.Initer):
             workerid        = None
         ):
         self.rds            = rds
-        self.workerid       = workerid
 
         self.rds.ping()
         hook_console()
@@ -44,6 +43,8 @@ class Worker(common.Initer):
         for i in kw:
             if i in d:
                 d[i] = kw[i]
+            if hasattr(defaults,i):
+                setattr(defaults,i,kw[i])
 
         return cls(rds=rds,**d)
 
@@ -52,49 +53,21 @@ class Worker(common.Initer):
         rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
         return bool(self.rds.pubsub_numsub(rname)[0][1])
 
+
+    # 拆分函数
     @staticmethod
     def disassemble_func(func, start=None, err=None, stop=None):
         def _disassemble(*a,**kw):
             return func, a, kw, start, err, stop
         return _disassemble
 
-    # 开始任务
-    def send_to_pipline(self, taskid, workerid, order, status=None, msg=None):
-        if status is None or status.lower() not in ['start','run','stop','error']:
-            raise "none init status. or status not in ['start','run','stop','error']"
-
-        if status =='start':
-            self.tasklist.add(taskid)
-            _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
-            print('start taskid:',taskid)
-        if status =='run':
-            _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
-            print('run taskid:',taskid,' workerid:',workerid,' order',order)
-        if status =='error':
-            _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
-            print('error taskid:',taskid)
-            print(msg)
-        if status =='stop':
-            self.tasklist.remove(taskid)
-            _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP, taskid)
-            print('stop taskid:',taskid)
-            print(' ')
-        rdata = {
-            'workerid': self.workerid, 
-            'taskid': taskid, 
-            'status': status,
-            'msg':msg
-        }
-        self.rds.lpush(_rname, json.dumps(rdata))
-
-
     def connect_work_queue(self,_queue,taskid,workerid,order):
         def _task_func(task_func):
             def pack_task(*a,**kw):
-                # 给任务注入错误回调，和停止回调的函数,放进线程执行队列
-                _start = self.disassemble_func(self.send_to_pipline)(taskid,workerid,order,'start')
-                _error = self.disassemble_func(self.send_to_pipline)(taskid,workerid,order,'error')
-                _stop  = self.disassemble_func(self.send_to_pipline)(taskid,workerid,order,'stop')
+                # 给任务注入“开始回调”、“错误回调”和“停止回调”的函数,放进线程执行队列
+                _start = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'start')
+                _error = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'error')
+                _stop  = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'stop')
                 _task  = self.disassemble_func(task_func, start=_start, err=_error, stop=_stop)\
                                               (*a,**kw)
                 _queue.put(_task)
@@ -129,7 +102,7 @@ class Worker(common.Initer):
 
             
             test_task = task_looper(test_task)
-            test_task(10)
+            test_task(10)# 函数被包装后直接按照原来的样子执行即可
 
     def _thread(self,_queue):
         while True:    
@@ -139,9 +112,9 @@ class Worker(common.Initer):
                 # 需要确保这里的 locals() 空间内拥有该函数名并且其余更深的环境没有该函数名字
                 # 具体使用详细见 utils 内的 hook 类的函数实现（听不懂就算了，总之就是很神奇）
                 __very_unique_function_name__ = func
-                taskid      = start[1][0]
-                workerid    = start[1][1]
-                order       = start[1][2]['order']
+                taskid      = start[1][1]
+                workerid    = start[1][2]
+                order       = start[1][3]['order']
                 try:
                     if start is not None:
                         start_callback,a,kw,_,_,_ = start
@@ -169,6 +142,14 @@ class Worker(common.Initer):
     def process_run_set(self):
         for i in range(defaults.VSCRAPY_WORKER_THREAD_SETTING_NUM):
             Thread(target=self._thread,args=(self.setting_task,)).start()
+
+
+
+
+
+
+
+
 
 if __name__ == '__main__':
     wk = Worker.from_settings(host='47.99.126.229',password='vilame')
