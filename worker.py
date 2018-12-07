@@ -5,6 +5,7 @@ import json
 import time
 import queue
 import traceback
+import logging
 
 import defaults
 import common
@@ -53,10 +54,9 @@ class Worker(common.Initer):
         rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
         return bool(self.rds.pubsub_numsub(rname)[0][1])
 
-
     # 拆分函数
     @staticmethod
-    def disassemble_func(func, start=None, err=None, stop=None):
+    def disassemble_func(func,start=None,err=None,stop=None):
         def _disassemble(*a,**kw):
             return func, a, kw, start, err, stop
         return _disassemble
@@ -68,7 +68,7 @@ class Worker(common.Initer):
                 _start = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'start')
                 _error = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'error')
                 _stop  = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'stop')
-                _task  = self.disassemble_func(task_func, start=_start, err=_error, stop=_stop)\
+                _task  = self.disassemble_func(task_func,start=_start,err=_error,stop=_stop)\
                                               (*a,**kw)
                 _queue.put(_task)
             return pack_task
@@ -89,23 +89,27 @@ class Worker(common.Initer):
             # 测试任务,后期需要根据 order 来实现任务处理，目前先简单实现一个函数和一个异常
             # 用以测试一般任务执行回传和错误回传
             #====================================
+            # 这里直接使用taskid 可能存在问题，因为当前环境的taskid 是会动态改变的，所以当前的检测会有问题
+            # 所以在脚本执行的时候需要将靠谱的环境参数也要添加进去，不然不能根据 taskid 来检测发送端的断连。
             def test_task(num):
-                # import os
-                # os.system('pip install requests')
+                import os
+                v = os.popen('pip install requests')
+                print(v.read())
                 for i in range(num):
                     if self.check_connect(taskid): # 用来测试发送端是否断开连接的接口。检测端口还是有点耦合。
                         # 用来测试错误日志信息得回传
-                        assert i<6 
-                        time.sleep(.6)
+                        rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
+                        assert i<100 
+                        #time.sleep(.01)
                         print(i)
             #======================================
 
             
             test_task = task_looper(test_task)
-            test_task(10)# 函数被包装后直接按照原来的样子执行即可
+            test_task(200)# 函数被包装后直接按照原来的样子执行即可
 
     def _thread(self,_queue):
-        while True:    
+        while True:
             func,args,kwargs,start,err,stop = _queue.get()
             def task(func,args,kwargs,start,err,stop):
                 # 为了使 stack 寻找时候定位当前的环境从而找到 taskid 来分割不同任务的日志环境
@@ -115,6 +119,7 @@ class Worker(common.Initer):
                 taskid      = start[1][1]
                 workerid    = start[1][2]
                 order       = start[1][3]['order']
+                rds         = self.rds
                 try:
                     if start is not None:
                         start_callback,a,kw,_,_,_ = start
@@ -142,13 +147,6 @@ class Worker(common.Initer):
     def process_run_set(self):
         for i in range(defaults.VSCRAPY_WORKER_THREAD_SETTING_NUM):
             Thread(target=self._thread,args=(self.setting_task,)).start()
-
-
-
-
-
-
-
 
 
 if __name__ == '__main__':

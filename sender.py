@@ -3,6 +3,7 @@ import redis
 import time
 import json
 import logging
+import random
 
 import defaults
 import common
@@ -11,8 +12,16 @@ from pipline import from_pipline
 class Sender(common.Initer):
     def __init__(self,
             rds = redis.StrictRedis(),
+            realtime = True,
+            realtime_one = None,
+            realtime_on_random_one = True,
+            realtime_list = None
         ):
-        self.rds          = rds
+        self.rds             = rds
+        self.realtime        = True
+        self.realtime_one    = realtime_one        
+        self.realtime_rdmone = realtime_on_random_one
+        self.realtime_list   = realtime_list
 
         self.rds.ping() # 确认链接 redis。
 
@@ -26,7 +35,12 @@ class Sender(common.Initer):
 
         # 类内配置，后续需要增加动态修改的内容，实现动态配置某类参数
         # 暂时觉得这里的配置之后都不太可能会被用到
-        d = dict()
+        d = dict(
+            realtime = True,
+            realtime_one = None,
+            realtime_on_random_one = True,
+            realtime_list = None
+        )
 
         # 默认配置，修改时注意不重名就行，内部元素都是大写字母与下划线
         global defaults
@@ -41,10 +55,30 @@ class Sender(common.Initer):
 
     def process_run(self):
         workernum = len(self.start_worker)
+
+        if self.realtime_one:
+            lis = [self.realtime_one]
+        elif self.realtime_list:
+            lis = self.realtime_list
+        elif self.realtime_rdmone:
+            lis = [random.choice(self.start_worker)['workerid']]
+        else:
+            lis = []
+
+        def realtime_filter_by_workerid_list(workerid_list,text):
+            _workerid_list  = list(map(int,workerid_list))
+            _workerid       = int(text[text.find(':')+1:text.find(']')])
+            if _workerid in _workerid_list:
+                return True
+
         while True and workernum:
             runinfo = from_pipline(self, self.taskid, 'run')
             if runinfo:
-                print('runinfo',runinfo)
+                if runinfo['piptype'] == 'realtime':
+                    if realtime_filter_by_workerid_list(lis, runinfo['msg']):
+                        print(runinfo['msg'])
+                else:
+                    print('runinfo',runinfo) # 这里考虑本地问题持久化
             if self.taskstop and runinfo is None:
                 break
         print('all task stop.')

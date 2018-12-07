@@ -3,9 +3,6 @@ import json
 from error import NotInDefaultsSetting
 import defaults
 
-
-
-
 # 收发函数的统一管理
 # 以下两个函数均服务于对 worker 端口信息回传的处理
 # 原本都是类内函数，但是为了统一管理和维护放在这里方便管道对应处理处理
@@ -13,23 +10,20 @@ import defaults
 def send_to_pipline(cls, taskid, workerid, order, piptype=None, msg=None):
     if piptype is None or piptype.lower() not in ['start','run','stop','error']:
         raise "none init piptype. or piptype not in ['start','run','stop','error']"
-
     if piptype =='start':
         cls.tasklist.add(taskid)
         _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
-        print('start taskid:',taskid)
+        print('start')
     if piptype =='run':
         _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
-        print('run taskid:',taskid,' workerid:',workerid,' order',order)
+        print('run')
     if piptype =='error':
         _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
-        print('error taskid:',taskid)
         print(msg)
     if piptype =='stop':
         cls.tasklist.remove(taskid)
         _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP, taskid)
-        print('stop taskid:',taskid)
-        print(' ')
+        print('stop')
     rdata = {
         'workerid': cls.workerid, 
         'taskid': taskid, 
@@ -57,6 +51,25 @@ def from_pipline(cls, taskid, piptype=None):
     except:
         rdata = None
     return rdata
+
+
+
+
+# 实时管道实现
+# 现在发现这种实时管道确实要前面的哪个管道好用很多，上面的管道也兼顾的信号发送的任务
+# 所以也不好废弃，而是兼顾在不同的功能上，先就目前这样好了。
+def send_to_pipline_real_time(taskid,workerid,order,rds,msg):
+    _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
+    rdata = {
+        'workerid': workerid, 
+        'taskid': taskid, 
+        'piptype': 'realtime',
+        'msg':msg
+    }
+    rds.lpush(_rname, json.dumps(rdata))
+
+
+
 
 
 
