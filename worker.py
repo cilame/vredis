@@ -68,8 +68,7 @@ class Worker(common.Initer):
                 _start = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'start')
                 _error = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'error')
                 _stop  = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'stop')
-                _task  = self.disassemble_func(task_func,start=_start,err=_error,stop=_stop)\
-                                              (*a,**kw)
+                _task  = self.disassemble_func(task_func,start=_start,err=_error,stop=_stop)(*a,**kw)
                 _queue.put(_task)
             return pack_task
         return _task_func
