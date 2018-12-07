@@ -129,13 +129,19 @@ class Sender(common.Initer):
             self.pub = self.rds.pubsub()
             self.pub.subscribe(rname)
             self.rds.publish(rname,'heartbeat')
-            while defaults.DEBUG and not bool(self.rds.pubsub_numsub(rname)[0][1]):
+            while not self.rds.pubsub_numsub(rname)[0][1]:
                 time.sleep(.15)
 
         def checked_order(order):
-            # TODO 优先本地的 order 首次正确性验证，强制需求 order 必须为字典形式
-            # 后续命令行处理时候传参更好一一对应处理
-            assert type(order) == dict
+            assert type(order) == dict and \
+                            'command' in order and \
+                     order['command'] in defaults.VSCRAPY_COMMAND_TYPES
+            # 结构检查，并填充默认值，使得传输更具备结构性
+            if order['command'] == 'list':  order = self.pack_command(order, ['alive', 'check'])
+            if order['command'] == 'run':   pass # TODO
+            if order['command'] == 'set':   pass
+            if order['command'] == 'attach':pass
+            if order['command'] == 'dump':  pass
             return order
 
         # 获取任务id 并广播出去
@@ -151,6 +157,26 @@ class Sender(common.Initer):
         # 就是一个 send 函数的简单包装。
         pass
 
+
+
+    def pack_command(self, order, subcommandlist):
+        # 结构检查，生成更规范的结构
+        if 'subcommand' not in order:
+            order['subcommand'] = None
+        else:
+            assert order['subcommand'] in subcommandlist
+        if 'setting' not in order:
+            order['setting'] = None
+        else:
+            assert type(order['setting']) == dict
+        for i in order:
+            if i not in defaults.VSCRAPY_COMMAND_STRUCT:
+                order.pop(i)
+        return order
+
+
+
+
     def check_worker_status(self, workerid=None, feature=None):
         # 通过id检查，某些工作端的状态，默认全部。一般过滤用 feature，不配置信息量会比较少
         # 执行流程就是先检查存活状态，然后通过存活的线程决定下一步怎么处理
@@ -165,4 +191,4 @@ class Sender(common.Initer):
 
 if __name__ == '__main__':
     sender = Sender.from_settings(host='47.99.126.229',password='vilame')
-    sender.send({123:333})
+    sender.send({'command':'list'})
