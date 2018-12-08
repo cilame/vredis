@@ -124,9 +124,13 @@ class Sender(common.Initer):
         for _ in range(self.pubnum):
             worker = from_pipline(self, self.taskid, 'start')
             if worker:
-                start_worker.append(worker)
-                # print('worker start:',worker)
+                if worker['msg'] is None:
+                    start_worker.append(worker)
+                else:
+                    # 在 start 阶段如果 msg 内有数据的话，那么就是开启时出现了错误。
+                    print(worker['msg'])
         self.start_worker = start_worker
+        print(self.start_worker)
 
         if defaults.DEBUG and self.start_worker:
             self.start() # 开启debug状态将额外开启两个线程作为输出日志的同步

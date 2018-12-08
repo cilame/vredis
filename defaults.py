@@ -44,3 +44,10 @@ VSCRAPY_COMMAND_STRUCT = {'command','subcommand','setting'}
 # 开启 DEBUG 状态会让调试时 worker 监控 VSCRAPY_PUBLISH_SENDER 的链接状态
 # 这个链接状态可作为一个开关来对 worker 本身进行一定执行控制.
 DEBUG = True
+
+VSCRAPY_KEEP_REALTIME_LOG = True
+VSCRAPY_KEEP_CONSOLE_LOG = True
+
+# 如果这里不设置的话，就默认是全部
+VSCRAPY_FILTER_TASKID = None
+VSCRAPY_FILTER_WORKERID = None

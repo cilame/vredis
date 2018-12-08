@@ -9,8 +9,8 @@ import logging
 
 import defaults
 import common
-from utils import hook_console, _stdout, _stderr
-from pipline import Valve, send_to_pipline
+from utils import hook_console, _stdout, _stderr, Valve
+from pipline import send_to_pipline
 from order import list_command
 
 class Worker(common.Initer):
@@ -131,6 +131,9 @@ class Worker(common.Initer):
                 workerid    = start[1][2]
                 order       = start[1][3]
                 rds         = self.rds
+                valve       = Valve(taskid,workerid)
+                # 阀门过滤，有配置用配置，没有配置就会用 defaults 里面的默认参数
+                # 使用时就当作一般的 defaults 来进行配置即可。
                 try:
                     if start is not None:
                         start_callback,a,kw,_,_,_ = start
