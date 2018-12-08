@@ -11,6 +11,7 @@ import defaults
 import common
 from utils import hook_console, _stdout, _stderr
 from pipline import Valve, send_to_pipline
+from order import list_command
 
 class Worker(common.Initer):
 
@@ -82,30 +83,41 @@ class Worker(common.Initer):
             order       = json.loads(i['data'])
             workerid    = self.workerid
             taskid      = order['taskid']
+            order       = order['order']
             task_looper = self.connect_work_queue(self.local_task,  taskid,workerid,order)
             sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order)
 
-            # 测试任务,后期需要根据 order 来实现任务处理，目前先简单实现一个函数和一个异常
-            # 用以测试一般任务执行回传和错误回传
-            #====================================
-            # 这里直接使用taskid 可能存在问题，因为当前环境的taskid 是会动态改变的，所以当前的检测会有问题
-            # 所以在脚本执行的时候需要将靠谱的环境参数也要添加进去，不然不能根据 taskid 来检测发送端的断连。
-            def test_task(num):
-                import os
-                v = os.popen('pip install requests')
-                print(v.read())
-                for i in range(num):
-                    if self.check_connect(taskid): # 用来测试发送端是否断开连接的接口。检测端口还是有点耦合。
-                        # 用来测试错误日志信息得回传
-                        rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
-                        assert i<100 
-                        #time.sleep(.01)
-                        print(i)
-            #======================================
+            if   order['command'] == 'list':
+                global list_command
+                _task = task_looper(list_command)
+                _task(self,taskid,workerid,order)
+            elif order['command'] == 'run':   pass
+            elif order['command'] == 'set':   pass
+            elif order['command'] == 'attach':pass
+            elif order['command'] == 'dump':  pass
+            elif order['command'] == 'test':
+                # else 后面这块用于测试
 
-            
-            test_task = task_looper(test_task)
-            test_task(200)# 函数被包装后直接按照原来的样子执行即可
+                # 测试任务,后期需要根据 order 来实现任务处理，目前先简单实现一个函数和一个异常
+                # 用以测试一般任务执行回传和错误回传
+                #====================================
+                # 这里直接使用taskid 可能存在问题，因为当前环境的taskid 是会动态改变的，所以当前的检测会有问题
+                # 所以在脚本执行的时候需要将靠谱的环境参数也要添加进去，不然不能根据 taskid 来检测发送端的断连。
+                def test_task(num):
+                    # import os
+                    # v = os.popen('pip install requests')
+                    # print(v.read())
+                    for i in range(num):
+                        if self.check_connect(taskid): # 用来测试发送端是否断开连接的接口。检测端口还是有点耦合。
+                            # 用来测试错误日志信息得回传
+                            rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
+                            assert i<100 
+                            #time.sleep(.01)
+                            print(i)
+                #======================================
+
+                test_task = task_looper(test_task)
+                test_task(200)# 函数被包装后直接按照原来的样子执行即可
 
     def _thread(self,_queue):
         while True:
@@ -117,7 +129,7 @@ class Worker(common.Initer):
                 __very_unique_function_name__ = func
                 taskid      = start[1][1]
                 workerid    = start[1][2]
-                order       = start[1][3]['order']
+                order       = start[1][3]
                 rds         = self.rds
                 try:
                     if start is not None:

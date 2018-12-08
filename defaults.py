@@ -34,7 +34,7 @@ VSCRAPY_WORKER_THREAD_SETTING_NUM = 3
 # set    动态设置属性，
 # attach 接入某个任务队列，修改其日志输出模式，让其向任务端传入日志，
 # dump   取数据（不在run执行中设定输出方式，默认将获取数据传入redis）
-VSCRAPY_COMMAND_TYPES = ['list','run','set','attach','dump']
+VSCRAPY_COMMAND_TYPES = ['list','run','set','attach','dump','test']
 VSCRAPY_COMMAND_STRUCT = {'command','subcommand','setting'}
 
 

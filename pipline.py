@@ -16,7 +16,6 @@ def send_to_pipline(cls, taskid, workerid, order, piptype=None, msg=None):
         print('start')
     if piptype =='run':
         _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
-        print('run')
     if piptype =='error':
         _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
         print(msg)
@@ -67,11 +66,6 @@ def send_to_pipline_real_time(taskid,workerid,order,rds,msg):
         'msg':msg
     }
     rds.lpush(_rname, json.dumps(rdata))
-
-
-
-
-
 
 
 

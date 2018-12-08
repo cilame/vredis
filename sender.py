@@ -7,6 +7,12 @@ import random
 
 import defaults
 import common
+from error import (
+    NotInDefaultCommand,
+    MustDictType,
+    MustInSubcommandList,
+    MustInCommandList
+)
 from pipline import from_pipline
 
 class Sender(common.Initer):
@@ -54,6 +60,8 @@ class Sender(common.Initer):
 
 
     def process_run(self):
+        # 这里是主要的数据回显的地方。暂时不能很好的设计命令会写的方式。
+        # 命令里面如何与会写联系稍微没有设计好，需要赶紧解决。
         workernum = len(self.start_worker)
 
         if self.realtime_one:
@@ -78,7 +86,8 @@ class Sender(common.Initer):
                     if realtime_filter_by_workerid_list(lis, runinfo['msg']):
                         print(runinfo['msg'])
                 else:
-                    print('runinfo',runinfo) # 这里考虑本地问题持久化
+                    pass
+                    #print('runinfo',runinfo) # 这里考虑本地问题持久化
             if self.taskstop and runinfo is None:
                 break
         print('all task stop.')
@@ -96,7 +105,7 @@ class Sender(common.Initer):
             if stopinfo and 'taskid' in stopinfo:
                 idx += 1
                 over_break = defaults.VSCRAPY_OVER_BREAK
-                print('worker stop:',stopinfo)
+                # print('worker stop:',stopinfo)
             else:
                 if over_break == 1: # 防止 dead worker 影响停止
                     aliveworkernum = self.rds.pubsub_numsub(defaults.VSCRAPY_PUBLISH_WORKER)[0][1]
@@ -114,8 +123,9 @@ class Sender(common.Initer):
         start_worker = []
         for _ in range(self.pubnum):
             worker = from_pipline(self, self.taskid, 'start')
-            start_worker.append(worker)
-            print('worker start:',worker)
+            if worker:
+                start_worker.append(worker)
+                # print('worker start:',worker)
         self.start_worker = start_worker
 
         if defaults.DEBUG and self.start_worker:
@@ -133,11 +143,41 @@ class Sender(common.Initer):
                 time.sleep(.15)
 
         def checked_order(order):
-            assert type(order) == dict and \
-                            'command' in order and \
-                     order['command'] in defaults.VSCRAPY_COMMAND_TYPES
+            # 异常、类型检查
+
+            def check_command(order, subcommandlist):
+                # 指令的约束，生成更规范的结构
+                if 'subcommand' not in order:
+                    order['subcommand'] = None
+                else:
+                    if type(order['subcommand']) != dict:
+                        raise MustDictType('order:subcommand "{}" must be a dict type.'\
+                            .format(order['subcommand']))
+                    if list(order['subcommand'])[0] not in subcommandlist:
+                        raise MustInSubcommandList('order:subcommand:key "{}" must in subcommandlist {}.'\
+                            .format(list(order['subcommand'])[0],str(subcommandlist)))
+                if 'setting' not in order:
+                    order['setting'] = None
+                else:
+                    if type(order['setting']) != dict:
+                        raise MustDictType('order:setting "{}" must be a dict type.'\
+                            .format(order['setting']))
+                for i in order:
+                    if i not in defaults.VSCRAPY_COMMAND_STRUCT:
+                        raise NotInDefaultCommand('{} not in {}'.format(i,defaults.VSCRAPY_COMMAND_STRUCT))
+                return order
+
+            if type(order) != dict:
+                raise MustDictType('order "{}" must be a dict type.'\
+                    .format(order))
+            if 'command' not in order:
+                raise 'order must has a "command" key'
+            if order['command'] not in defaults.VSCRAPY_COMMAND_TYPES:
+                raise MustInCommandList('{} not in {}'.format(order['command'],defaults.VSCRAPY_COMMAND_TYPES))
+
+
             # 结构检查，并填充默认值，使得传输更具备结构性
-            if order['command'] == 'list':  order = self.pack_command(order, ['alive', 'check'])
+            if order['command'] == 'list':  order = check_command(order, ['alive', 'check'])
             if order['command'] == 'run':   pass # TODO
             if order['command'] == 'set':   pass
             if order['command'] == 'attach':pass
@@ -152,29 +192,12 @@ class Sender(common.Initer):
         self.pubnum = self.rds.publish(defaults.VSCRAPY_PUBLISH_WORKER, json.dumps(self.order))
         self.send_status()
 
+
+
     def send_console(self, consoleline):
         # 输送命令行执行的命令过去，或许有些程序需要使用控制台进行一些配置类的操作。
         # 就是一个 send 函数的简单包装。
         pass
-
-
-
-    def pack_command(self, order, subcommandlist):
-        # 结构检查，生成更规范的结构
-        if 'subcommand' not in order:
-            order['subcommand'] = None
-        else:
-            assert order['subcommand'] in subcommandlist
-        if 'setting' not in order:
-            order['setting'] = None
-        else:
-            assert type(order['setting']) == dict
-        for i in order:
-            if i not in defaults.VSCRAPY_COMMAND_STRUCT:
-                order.pop(i)
-        return order
-
-
 
 
     def check_worker_status(self, workerid=None, feature=None):
@@ -191,4 +214,4 @@ class Sender(common.Initer):
 
 if __name__ == '__main__':
     sender = Sender.from_settings(host='47.99.126.229',password='vilame')
-    sender.send({'command':'list'})
+    sender.send({'command':'test'})
