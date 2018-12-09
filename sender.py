@@ -7,13 +7,9 @@ import random
 
 import defaults
 import common
-from error import (
-    NotInDefaultCommand,
-    MustDictType,
-    MustInSubcommandList,
-    MustInCommandList
-)
+
 from pipline import from_pipline
+from utils import checked_order
 
 class Sender(common.Initer):
     def __init__(self,
@@ -64,27 +60,11 @@ class Sender(common.Initer):
         # 命令里面如何与会写联系稍微没有设计好，需要赶紧解决。
         workernum = len(self.start_worker)
 
-        if self.realtime_one:
-            lis = [self.realtime_one]
-        elif self.realtime_list:
-            lis = self.realtime_list
-        elif self.realtime_rdmone:
-            lis = [random.choice(self.start_worker)['workerid']]
-        else:
-            lis = []
-
-        def realtime_filter_by_workerid_list(workerid_list,text):
-            _workerid_list  = list(map(int,workerid_list))
-            _workerid       = int(text[text.find(':')+1:text.find(']')])
-            if _workerid in _workerid_list:
-                return True
-
         while True and workernum:
             runinfo = from_pipline(self, self.taskid, 'run')
             if runinfo:
                 if runinfo['piptype'] == 'realtime':
-                    if realtime_filter_by_workerid_list(lis, runinfo['msg']):
-                        print(runinfo['msg'])
+                    print(runinfo['msg'])
                 else:
                     pass
                     #print('runinfo',runinfo) # 这里考虑本地问题持久化
@@ -146,48 +126,6 @@ class Sender(common.Initer):
             while not self.rds.pubsub_numsub(rname)[0][1]:
                 time.sleep(.15)
 
-        def checked_order(order):
-            # 异常、类型检查
-
-            def check_command(order, subcommandlist):
-                # 指令的约束，生成更规范的结构
-                if 'subcommand' not in order:
-                    order['subcommand'] = None
-                else:
-                    if type(order['subcommand']) != dict:
-                        raise MustDictType('order:subcommand "{}" must be a dict type.'\
-                            .format(order['subcommand']))
-                    if list(order['subcommand'])[0] not in subcommandlist:
-                        raise MustInSubcommandList('order:subcommand:key "{}" must in subcommandlist {}.'\
-                            .format(list(order['subcommand'])[0],str(subcommandlist)))
-                if 'setting' not in order:
-                    order['setting'] = None
-                else:
-                    if type(order['setting']) != dict:
-                        raise MustDictType('order:setting "{}" must be a dict type.'\
-                            .format(order['setting']))
-                for i in order:
-                    if i not in defaults.VSCRAPY_COMMAND_STRUCT:
-                        raise NotInDefaultCommand('{} not in {}'.format(i,defaults.VSCRAPY_COMMAND_STRUCT))
-                return order
-
-            if type(order) != dict:
-                raise MustDictType('order "{}" must be a dict type.'\
-                    .format(order))
-            if 'command' not in order:
-                raise 'order must has a "command" key'
-            if order['command'] not in defaults.VSCRAPY_COMMAND_TYPES:
-                raise MustInCommandList('{} not in {}'.format(order['command'],defaults.VSCRAPY_COMMAND_TYPES))
-
-
-            # 结构检查，并填充默认值，使得传输更具备结构性
-            if order['command'] == 'list':  order = check_command(order, ['alive', 'check'])
-            if order['command'] == 'run':   pass # TODO
-            if order['command'] == 'set':   pass
-            if order['command'] == 'attach':pass
-            if order['command'] == 'dump':  pass
-            return order
-
         # 获取任务id 并广播出去
         self.taskid = self.rds.hincrby(defaults.VSCRAPY_SENDER,defaults.VSCRAPY_SENDER_ID)
         self.order  = {'taskid':self.taskid, 'order':checked_order(input_order)}
@@ -218,4 +156,4 @@ class Sender(common.Initer):
 
 if __name__ == '__main__':
     sender = Sender.from_settings(host='47.99.126.229',password='vilame')
-    sender.send({'command':'test'})
+    sender.send({'command':'test','settings':{'VSCRAPY_FILTER_WORKERID':[17]}})

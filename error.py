@@ -12,3 +12,6 @@ class MustInSubcommandList(Exception):
 
 class MustInCommandList(Exception):
 	pass
+
+class UndevelopmentSubcommand(Exception):
+	pass

@@ -131,10 +131,12 @@ class Worker(common.Initer):
                 workerid    = start[1][2]
                 order       = start[1][3]
                 rds         = self.rds
-                valve       = Valve(taskid,workerid)
+                valve       = Valve(taskid, workerid)
+                rdm         = self.rds.hincrby(defaults.VSCRAPY_WORKER, taskid)
                 # 阀门过滤，有配置用配置，没有配置就会用 defaults 里面的默认参数
                 # 使用时就当作一般的 defaults 来进行配置即可。
                 try:
+                    valve.update(order['settings'])
                     if start is not None:
                         start_callback,a,kw,_,_,_ = start
                         start_callback(*a,**kw)
@@ -144,6 +146,7 @@ class Worker(common.Initer):
                         err_callback,a,kw,_,_,_ = err
                         err_callback(*a,**kw,msg=traceback.format_exc())
                 finally:
+                    self.rds.hdel(defaults.VSCRAPY_WORKER, taskid)
                     if stop is not None:
                         stop_callback,a,kw,_,_,_ = stop
                         stop_callback(*a,**kw)

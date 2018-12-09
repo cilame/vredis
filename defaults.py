@@ -16,6 +16,8 @@ VSCRAPY_OVER_BREAK = 2
 # type: hmap, id 自增作为 workerid
 VSCRAPY_WORKER = 'vscrapy:worker'
 VSCRAPY_WORKER_ID = 'id'
+# 后续在程序中增加 VSCRAPY_WORKER + 'taskid' 作为一个自增的数字key，
+# 用以实现随机抽取一个进行回写的动作选择
 
 # type: publish
 VSCRAPY_PUBLISH_WORKER = 'vscrapy:publish:worker'
@@ -30,12 +32,12 @@ VSCRAPY_WORKER_THREAD_SETTING_NUM = 3
 # 命令的类型，用来简单的约束开发
 # 分别代表：
 # list   列出接收广播worker，
-# run    执行任务（属性设置），
+# run    执行任务（包含属性设置），
 # set    动态设置属性，
 # attach 接入某个任务队列，修改其日志输出模式，让其向任务端传入日志，
 # dump   取数据（不在run执行中设定输出方式，默认将获取数据传入redis）
 VSCRAPY_COMMAND_TYPES = ['list','run','set','attach','dump','test']
-VSCRAPY_COMMAND_STRUCT = {'command','subcommand','setting'}
+VSCRAPY_COMMAND_STRUCT = {'command','subcommand','settings'}
 
 
 
@@ -45,9 +47,13 @@ VSCRAPY_COMMAND_STRUCT = {'command','subcommand','setting'}
 # 这个链接状态可作为一个开关来对 worker 本身进行一定执行控制.
 DEBUG = True
 
+# 实时回写控制台日志
 VSCRAPY_KEEP_REALTIME_LOG = True
 VSCRAPY_KEEP_CONSOLE_LOG = True
 
-# 如果这里不设置的话，就默认是全部
+# 随机选择一个任务进行实时日志回写
+VSCRAPY_FILTER_RANDOM_ONE = True
+# 当指定 taskid 和 workerid 进行过滤输出时，“随机选择一个”的配置就会失效
 VSCRAPY_FILTER_TASKID = None
 VSCRAPY_FILTER_WORKERID = None
+# 如果这里不设置的话，就默认是全部

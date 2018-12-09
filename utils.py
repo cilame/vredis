@@ -4,7 +4,14 @@ import logging
 import defaults
 
 from pipline import send_to_pipline_real_time
-from error import NotInDefaultsSetting
+from error import (
+    NotInDefaultsSetting,
+    NotInDefaultCommand,
+    MustDictType,
+    MustInSubcommandList,
+    MustInCommandList,
+    UndevelopmentSubcommand
+)
 
 __org_stdout__ = sys.stdout
 __org_stderr__ = sys.stderr
@@ -17,44 +24,48 @@ class stdhooker:
         self.__org_func__ = __org_stdout__ if hook.lower() == 'stdout' else __org_stderr__
 
     def write(self,text):
-        _taskid_workerid_order_rds_valve_ = None
+        _taskid_workerid_order_rds_valve_rdm_ = None
         for i in inspect.stack():
             if '__very_unique_function_name__' in i[0].f_locals and 'taskid' in i[0].f_locals:
-                _taskid_workerid_order_rds_valve_ = find_task_locals()
+                _taskid_workerid_order_rds_valve_rdm_ = find_task_locals()
                 break
-        if _taskid_workerid_order_rds_valve_:
-            taskid,workerid,order,rds,valve = _taskid_workerid_order_rds_valve_
+        if _taskid_workerid_order_rds_valve_rdm_:
+            taskid,workerid,order,rds,valve,rdm = _taskid_workerid_order_rds_valve_rdm_
             if taskid not in self.cache:
                 self.cache[taskid] = text
             else:
                 self.cache[taskid] += text
-            self._write(taskid,workerid,order,rds,valve)
+            self._write(taskid,workerid,order,rds,valve,rdm)
         else:
             self.__org_func__.write(text)
 
-    def _write(self,taskid,workerid,order,rds,valve):
+    def _write(self,taskid,workerid,order,rds,valve,rdm):
         if '\n' in self.cache[taskid]:
             _text = self.cache[taskid].rsplit('\n',1)
             self.cache[taskid] = '' if len(_text) == 1 else _text[1]
             _text_ = '[{}:{}] '.format(taskid,workerid) + _text[0]
 
-            toggle = self._filter(taskid,workerid,valve)
             # 管道架设在这里，现在发现用 valve 来进行配置还挺方便的，能保证任务隔离，动态配置时候还很方便。
-            if valve.VSCRAPY_KEEP_REALTIME_LOG:
-                if toggle: send_to_pipline_real_time(taskid,workerid,order,rds,_text_)
+            if self._filter(taskid,workerid,valve,rdm): 
+                send_to_pipline_real_time(taskid,workerid,order,rds,_text_)
             if valve.VSCRAPY_KEEP_CONSOLE_LOG:
-                if toggle: self.__org_func__.write(_text_ + '\n')
+                self.__org_func__.write(_text_ + '\n')
 
-    def _filter(self,taskid,workerid,valve):
-        if valve.VSCRAPY_FILTER_WORKERID is not None:
-            r1 = True if workerid in valve.VSCRAPY_FILTER_WORKERID else False
+    def _filter(self,taskid,workerid,valve,rdm):
+        if valve.VSCRAPY_FILTER_RANDOM_ONE \
+            and valve.VSCRAPY_FILTER_TASKID is None\
+            and valve.VSCRAPY_FILTER_WORKERID is None:
+            return rdm == 1
         else:
-            r1 = True
-        if valve.VSCRAPY_FILTER_TASKID is not None:
-            r2 = True if taskid in valve.VSCRAPY_FILTER_TASKID else False
-        else:
-            r2 = True
-        return r1 and r2
+            if valve.VSCRAPY_FILTER_WORKERID is not None:
+                r1 = True if workerid in valve.VSCRAPY_FILTER_WORKERID else False
+            else:
+                r1 = True
+            if valve.VSCRAPY_FILTER_TASKID is not None:
+                r2 = True if taskid in valve.VSCRAPY_FILTER_TASKID else False
+            else:
+                r2 = True
+            return r1 and r2
 
     def flush(self):
         self.__org_func__.flush()
@@ -81,14 +92,15 @@ def find_task_locals():
     _text_taskid_workerid_order_rds_ = None
     for i in inspect.stack():
         if '__very_unique_function_name__' in i[0].f_locals and 'taskid' in i[0].f_locals:
-            _taskid_workerid_order_rds_valve_ = \
+            _taskid_workerid_order_rds_valve_rdm_ = \
                 i[0].f_locals['taskid'],\
                 i[0].f_locals['workerid'],\
                 i[0].f_locals['order'],\
                 i[0].f_locals['rds'],\
-                i[0].f_locals['valve']
+                i[0].f_locals['valve'],\
+                i[0].f_locals['rdm']
             break
-    return _taskid_workerid_order_rds_valve_
+    return _taskid_workerid_order_rds_valve_rdm_
 
 
 # 阀门转移到 utils 里面，因为几乎可以作为较为通用的工作来使用
@@ -122,10 +134,75 @@ class Valve:
             raise NotInDefaultsSetting('[{}] {}'.format(self.keyid,attr))
 
     def update(self,settings):
-        for key in settings:
-            if not hasattr(defaults,key):
-                raise NotInDefaultsSetting('[{}] {}'.format(self.keyid,key))
-        Valve.__valves__[self.keyid].update(settings)
+        if settings is not None:
+            for key in settings:
+                if not hasattr(defaults,key):
+                    raise NotInDefaultsSetting('[{}] {}'.format(self.keyid,key))
+            Valve.__valves__[self.keyid].update(settings)
+
+
+
+
+
+def checked_order(order):
+    # 异常、类型检查，并且补充指令的结构进行传输
+    # 基础的指令结构为 {'command': <str> ,'subcommand': <dict> ,'settings': <dict> }
+
+    def check_command(order, subcommandlist=None):
+        # 指令的约束，生成更规范的结构
+        # 指令有哪些 subcommand 可以通过在这里进行异常的约束
+        if subcommandlist:
+            if 'subcommand' not in order:
+                order['subcommand'] = None
+            else:
+                if type(order['subcommand']) != dict:
+                    raise MustDictType('order:subcommand "{}" must be a dict type.'\
+                        .format(order['subcommand']))
+                if list(order['subcommand'])[0] not in subcommandlist:
+                    raise MustInSubcommandList('order:subcommand:key "{}" must in subcommandlist {}.'\
+                        .format(list(order['subcommand'])[0],str(subcommandlist)))
+        else:
+            # 没有 subcommandlist 参数的话，这里将会默认将 subcommand key填充 None 保证结构
+            # 由于 subcommandlist 是开发者来选填的部分，所以这里的开发部分注意
+            if 'subcommand' not in order:
+                order['subcommand'] = None
+            else:
+                raise UndevelopmentSubcommand('{}, check your subcommand.'.format(order['subcommand']))
+        if 'settings' not in order:
+            order['settings'] = None
+        else:
+            if type(order['settings']) != dict:
+                raise MustDictType('order:settings "{}" must be a dict type.'\
+                    .format(order['settings']))
+        for i in order:
+            if i not in defaults.VSCRAPY_COMMAND_STRUCT:
+                raise NotInDefaultCommand('{} not in {}'.format(i,defaults.VSCRAPY_COMMAND_STRUCT))
+        return order
+
+    if type(order) != dict:
+        raise MustDictType('order "{}" must be a dict type.'\
+            .format(order))
+    if 'command' not in order:
+        raise 'order must has a "command" key'
+    if order['command'] not in defaults.VSCRAPY_COMMAND_TYPES:
+        raise MustInCommandList('{} not in {}'.format(order['command'],defaults.VSCRAPY_COMMAND_TYPES))
+
+
+    # 结构检查，并填充默认值，使得传输更具备结构性
+    # 后续需要在这里配置默认参数的传递，防止只用一个 defaults 配置时无法对交叉的默认参数进行应对。
+    if order['command'] == 'list':  order = check_command(order, ['alive', 'check'])
+    if order['command'] == 'run':   pass # TODO
+    if order['command'] == 'set':   pass
+    if order['command'] == 'attach':pass
+    if order['command'] == 'dump':  pass
+    if order['command'] == 'test':  order = check_command(order)
+    return order
+
+
+
+
+
+
 
 
 if __name__ == '__main__':
