@@ -13,7 +13,7 @@ def send_to_pipline(cls, taskid, workerid, order, piptype=None, msg=None):
     if piptype =='start':
         cls.tasklist.add(taskid)
         _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_START, taskid)
-        print('start')
+        # print('start')
     if piptype =='run':
         _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_RUN, taskid)
     if piptype =='error':
@@ -29,7 +29,7 @@ def send_to_pipline(cls, taskid, workerid, order, piptype=None, msg=None):
         try: cls.tasklist.remove(taskid)
         except: pass
         _rname = '{}:{}'.format(defaults.VSCRAPY_SENDER_STOP, taskid)
-        print('stop')
+        # print('stop')
     rdata = {
         'workerid': cls.workerid, 
         'taskid': taskid, 

@@ -14,16 +14,8 @@ from utils import checked_order
 class Sender(common.Initer):
     def __init__(self,
             rds = redis.StrictRedis(),
-            realtime = True,
-            realtime_one = None,
-            realtime_on_random_one = True,
-            realtime_list = None
         ):
         self.rds             = rds
-        self.realtime        = True
-        self.realtime_one    = realtime_one        
-        self.realtime_rdmone = realtime_on_random_one
-        self.realtime_list   = realtime_list
 
         self.rds.ping() # 确认链接 redis。
 
@@ -37,12 +29,7 @@ class Sender(common.Initer):
 
         # 类内配置，后续需要增加动态修改的内容，实现动态配置某类参数
         # 暂时觉得这里的配置之后都不太可能会被用到
-        d = dict(
-            realtime = True,
-            realtime_one = None,
-            realtime_on_random_one = True,
-            realtime_list = None
-        )
+        d = dict()
 
         # 默认配置，修改时注意不重名就行，内部元素都是大写字母与下划线
         global defaults
@@ -56,18 +43,11 @@ class Sender(common.Initer):
 
 
     def process_run(self):
-        # 这里是主要的数据回显的地方。暂时不能很好的设计命令会写的方式。
-        # 命令里面如何与会写联系稍微没有设计好，需要赶紧解决。
         workernum = len(self.start_worker)
-
         while True and workernum:
             runinfo = from_pipline(self, self.taskid, 'run')
-            if runinfo:
-                if runinfo['piptype'] == 'realtime':
-                    print(runinfo['msg'])
-                else:
-                    pass
-                    #print('runinfo',runinfo) # 这里考虑本地问题持久化
+            if runinfo and runinfo['piptype'] == 'realtime':
+                print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
             if self.taskstop and runinfo is None:
                 break
         print('all task stop.')
@@ -107,10 +87,9 @@ class Sender(common.Initer):
                 if worker['msg'] is None:
                     start_worker.append(worker)
                 else:
-                    # 在 start 阶段如果 msg 内有数据的话，那么就是开启时出现了错误。
+                    # 在 start 阶段如果 msg 内有数据的话，那么就是开启时出现了错误。进行开始阶段的错误回写即可。
                     print(worker['msg'])
         self.start_worker = start_worker
-        print(self.start_worker)
 
         if defaults.DEBUG and self.start_worker:
             self.start() # 开启debug状态将额外开启两个线程作为输出日志的同步
@@ -156,4 +135,5 @@ class Sender(common.Initer):
 
 if __name__ == '__main__':
     sender = Sender.from_settings(host='47.99.126.229',password='vilame')
-    sender.send({'command':'test','settings':{'VSCRAPY_FILTER_WORKERID':[17]}})
+    # sender.send({'command':'test','settings':{'VSCRAPY_FILTER_WORKERID':[18]}}) # 指定某个 worker 回写
+    sender.send({'command':'list'}) # 不指定则在DEBUG 状态下随机选一个进行回写

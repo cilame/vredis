@@ -17,6 +17,11 @@ __org_stdout__ = sys.stdout
 __org_stderr__ = sys.stderr
 
 
+
+#=======================
+# 这里是 worker 端的函数
+#=======================
+
 class stdhooker:
     def __init__(self,hook=None):
         self.cache = {} # 行缓存，一个 taskid 拥有一个行缓冲区
@@ -24,11 +29,7 @@ class stdhooker:
         self.__org_func__ = __org_stdout__ if hook.lower() == 'stdout' else __org_stderr__
 
     def write(self,text):
-        _taskid_workerid_order_rds_valve_rdm_ = None
-        for i in inspect.stack():
-            if '__very_unique_function_name__' in i[0].f_locals and 'taskid' in i[0].f_locals:
-                _taskid_workerid_order_rds_valve_rdm_ = find_task_locals()
-                break
+        _taskid_workerid_order_rds_valve_rdm_ = find_task_locals()
         if _taskid_workerid_order_rds_valve_rdm_:
             taskid,workerid,order,rds,valve,rdm = _taskid_workerid_order_rds_valve_rdm_
             if taskid not in self.cache:
@@ -89,7 +90,7 @@ def unhook_console(stdout=True,stderr=True):
 
 
 def find_task_locals():
-    _text_taskid_workerid_order_rds_ = None
+    _taskid_workerid_order_rds_valve_rdm_ = None
     for i in inspect.stack():
         if '__very_unique_function_name__' in i[0].f_locals and 'taskid' in i[0].f_locals:
             _taskid_workerid_order_rds_valve_rdm_ = \
@@ -143,6 +144,15 @@ class Valve:
 
 
 
+
+
+
+
+
+
+#=======================
+# 这里是 sender 端的函数
+#=======================
 
 def checked_order(order):
     # 异常、类型检查，并且补充指令的结构进行传输
