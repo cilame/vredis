@@ -158,6 +158,49 @@ def checked_order(order):
     # 异常、类型检查，并且补充指令的结构进行传输
     # 基础的指令结构为 {'command': <str> ,'subcommand': <dict> ,'settings': <dict> }
 
+
+    def defaults_settings(order):
+        order['settings'] = {} if order['settings'] is None else order['settings']
+        debug = order['settings']['DEBUG'] if 'DEBUG' in order['settings'] else defaults.DEBUG
+        if order['command'] == 'list':
+            d = dict(
+                VSCRAPY_KEEP_REALTIME_LOG = True, # 工作端执行结果实时回显，因为该命令返回数据量少所以需要全部回显
+                VSCRAPY_FILTER_RANDOM_ONE = False,# 默认关闭，如果没有设置过滤的 taskid或 workerid则随机选一个回显
+                VSCRAPY_KEEP_CONSOLE_LOG = False  # 默认关闭，保持工作端的打印输出
+            )
+        elif order['command'] == 'run':
+            d = dict(
+                VSCRAPY_KEEP_REALTIME_LOG = bool(debug), # DEBUG 默认则会实时回显
+                VSCRAPY_FILTER_RANDOM_ONE = True, # 默认开启
+                VSCRAPY_KEEP_CONSOLE_LOG = False  # 默认关闭
+            )
+        elif order['command'] == 'attach':
+            # TODO 后续根据实际情况配置
+            d = dict(
+                VSCRAPY_KEEP_REALTIME_LOG = True,
+                VSCRAPY_FILTER_RANDOM_ONE = False,
+                VSCRAPY_KEEP_CONSOLE_LOG = False
+            )
+        elif order['command'] == 'dump':
+            # TODO 后续根据实际情况配置
+            d = dict(
+                VSCRAPY_KEEP_REALTIME_LOG = True,
+                VSCRAPY_FILTER_RANDOM_ONE = False,
+                VSCRAPY_KEEP_CONSOLE_LOG = False
+            )
+        elif order['command'] == 'test':
+            # TODO 后续根据实际情况配置
+            d = dict(
+                VSCRAPY_KEEP_REALTIME_LOG = True,
+                VSCRAPY_FILTER_RANDOM_ONE = True,
+                VSCRAPY_KEEP_CONSOLE_LOG = True    # 该工具开发时，worker端调试需要
+            )
+        else:
+            d = {}
+        d.update(order['settings']); order['settings'] = d
+        return order
+
+
     def check_command(order, subcommandlist=None):
         # 指令的约束，生成更规范的结构
         # 指令有哪些 subcommand 可以通过在这里进行异常的约束
@@ -187,7 +230,7 @@ def checked_order(order):
         for i in order:
             if i not in defaults.VSCRAPY_COMMAND_STRUCT:
                 raise NotInDefaultCommand('{} not in {}'.format(i,defaults.VSCRAPY_COMMAND_STRUCT))
-        return order
+        return defaults_settings(order)
 
     if type(order) != dict:
         raise MustDictType('order "{}" must be a dict type.'\
@@ -202,8 +245,7 @@ def checked_order(order):
     # 后续需要在这里配置默认参数的传递，防止只用一个 defaults 配置时无法对交叉的默认参数进行应对。
     if order['command'] == 'list':  order = check_command(order, ['alive', 'check'])
     if order['command'] == 'run':   pass # TODO
-    if order['command'] == 'set':   pass
-    if order['command'] == 'attach':pass
+    if order['command'] == 'attach':order = check_command(order, ['set', 'connect'])
     if order['command'] == 'dump':  pass
     if order['command'] == 'test':  order = check_command(order)
     return order
@@ -215,12 +257,12 @@ def checked_order(order):
 
 
 
-if __name__ == '__main__':
-    v = Valve(1,2)
-    s = Valve(3,4)
-    print('unchange:',v.VSCRAPY_SENDER_RUN)
-    print('unchange:',s.VSCRAPY_SENDER_RUN)
-    v.VSCRAPY_SENDER_RUN = 333
-    print('change:',v.VSCRAPY_SENDER_RUN)
-    print('change:',s.VSCRAPY_SENDER_RUN)
-    print(v.__valves__)
+# if __name__ == '__main__':
+#     v = Valve(1,2)
+#     s = Valve(3,4)
+#     print('unchange:',v.VSCRAPY_SENDER_RUN)
+#     print('unchange:',s.VSCRAPY_SENDER_RUN)
+#     v.VSCRAPY_SENDER_RUN = 333
+#     print('change:',v.VSCRAPY_SENDER_RUN)
+#     print('change:',s.VSCRAPY_SENDER_RUN)
+#     print(v.__valves__)

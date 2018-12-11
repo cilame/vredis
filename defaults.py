@@ -32,11 +32,14 @@ VSCRAPY_WORKER_THREAD_SETTING_NUM = 3
 # 命令的类型，用来简单的约束开发
 # 分别代表：
 # list   列出接收广播worker，
+    # alive 简单的检查存活状态，目前只返回平台信息，后续可能会配置获取更多信息。
+    # check 后续可能会改名字，因为预计是想用来实现检查各个任务执行的当前状态信息。用以统计。
 # run    执行任务（包含属性设置），
-# set    动态设置属性，
 # attach 接入某个任务队列，修改其日志输出模式，让其向任务端传入日志，
+    # set 由于使用场景不多，替换该功能层级，作为 attach 的一个部分，
+    # connect 也将包含该功能，作为其 attach 两个下数功能之一的带参数的功能部。
 # dump   取数据（不在run执行中设定输出方式，默认将获取数据传入redis）
-VSCRAPY_COMMAND_TYPES = ['list','run','set','attach','dump','test']
+VSCRAPY_COMMAND_TYPES = ['list','run','attach','dump','test']
 VSCRAPY_COMMAND_STRUCT = {'command','subcommand','settings'}
 
 

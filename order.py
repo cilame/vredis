@@ -6,13 +6,7 @@ from utils import find_task_locals
 
 # 目前要根据 defaults.VSCRAPY_COMMAND_TYPES 里面的参数进行开发各自的执行指令的方式
 
-
 def list_command(cls, taskid, workerid, order):
-
-    taskid,workerid,order,rds,valve,rdm = find_task_locals()
-    valve.VSCRAPY_KEEP_REALTIME_LOG = True
-    valve.VSCRAPY_FILTER_RANDOM_ONE = False
-    valve.VSCRAPY_KEEP_CONSOLE_LOG = False
 
     subcommand = {'alive':'platform'} if order['subcommand'] == None else order['subcommand']
     if list(subcommand)[0] == 'alive':
@@ -33,11 +27,6 @@ def list_command(cls, taskid, workerid, order):
 
     else:
         raise UndevelopmentSubcommand(list(subcommand)[0])
-
-
-def set_command(cls, taskid, workerid, order):
-    # 即时改变某个已经执行的任务的配置
-    pass
 
 def run_command(cls, taskid, workerid, order):
     # 状态问题：

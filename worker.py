@@ -89,10 +89,8 @@ class Worker(common.Initer):
 
             if   order['command'] == 'list':
                 global list_command
-                _task = task_looper(list_command)
-                _task(self,taskid,workerid,order)
+                task_looper(list_command)(self,taskid,workerid,order)
             elif order['command'] == 'run':   pass
-            elif order['command'] == 'set':   pass
             elif order['command'] == 'attach':pass
             elif order['command'] == 'dump':  pass
             elif order['command'] == 'test':
@@ -111,8 +109,7 @@ class Worker(common.Initer):
                         if self.check_connect(taskid): # 用来测试发送端是否断开连接的接口。检测端口还是有点耦合。
                             # 用来测试错误日志信息得回传
                             rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
-                            assert i<100 
-                            #time.sleep(.01)
+                            assert i<100 #;time.sleep(.01)
                             print(i)
                 #======================================
 

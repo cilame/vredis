@@ -7,7 +7,6 @@ import random
 
 import defaults
 import common
-
 from pipline import from_pipline
 from utils import checked_order
 
@@ -135,5 +134,5 @@ class Sender(common.Initer):
 
 if __name__ == '__main__':
     sender = Sender.from_settings(host='47.99.126.229',password='vilame')
-    # sender.send({'command':'test','settings':{'VSCRAPY_FILTER_WORKERID':[18]}}) # 指定某个 worker 回写
-    sender.send({'command':'list'}) # 不指定则在DEBUG 状态下随机选一个进行回写
+    #sender.send({'command':'test','settings':{'VSCRAPY_FILTER_WORKERID':[67]}}) # 指定某个 worker 回写
+    sender.send({'command':'test'}) # 不指定则在DEBUG 状态下随机选一个进行回写
