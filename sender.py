@@ -55,7 +55,7 @@ class Sender(common.Initer):
     def process_stop(self):
         workernum = len(self.start_worker)
         idx = 0
-        over_break = defaults.VSCRAPY_OVER_BREAK
+        over_break = defaults.VREDIS_OVER_BREAK
         while True and not self.taskstop and workernum:
             if idx == workernum:
                 self.taskstop = True
@@ -63,11 +63,11 @@ class Sender(common.Initer):
             stopinfo = from_pipeline(self, self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
                 idx += 1
-                over_break = defaults.VSCRAPY_OVER_BREAK
+                over_break = defaults.VREDIS_OVER_BREAK
                 # print('worker stop:',stopinfo)
             else:
                 if over_break == 1: # 防止 dead worker 影响停止
-                    aliveworkernum = self.rds.pubsub_numsub(defaults.VSCRAPY_PUBLISH_WORKER)[0][1]
+                    aliveworkernum = self.rds.pubsub_numsub(defaults.VREDIS_PUBLISH_WORKER)[0][1]
                     if idx == aliveworkernum and aliveworkernum < workernum:
                         print('workernum:',workernum)
                         print('aliveworkernum:',aliveworkernum)
@@ -97,7 +97,7 @@ class Sender(common.Initer):
     def send(self, input_order):
         
         def wait_connect_pub(self):
-            rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, self.taskid)
+            rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, self.taskid)
             self.pub = self.rds.pubsub()
             self.pub.subscribe(rname)
             self.rds.publish(rname,'heartbeat')
@@ -105,11 +105,11 @@ class Sender(common.Initer):
                 time.sleep(.15)
 
         # 获取任务id 并广播出去
-        self.taskid = self.rds.hincrby(defaults.VSCRAPY_SENDER,defaults.VSCRAPY_SENDER_ID)
+        self.taskid = self.rds.hincrby(defaults.VREDIS_SENDER,defaults.VREDIS_SENDER_ID)
         self.order  = {'taskid':self.taskid, 'order':checked_order(input_order)}
         if defaults.DEBUG:
             wait_connect_pub(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
-        self.pubnum = self.rds.publish(defaults.VSCRAPY_PUBLISH_WORKER, json.dumps(self.order))
+        self.pubnum = self.rds.publish(defaults.VREDIS_PUBLISH_WORKER, json.dumps(self.order))
         self.send_status()
 
 
@@ -134,5 +134,5 @@ class Sender(common.Initer):
 
 if __name__ == '__main__':
     sender = Sender.from_settings(host='47.99.126.229',password='vilame')
-    #sender.send({'command':'test','settings':{'VSCRAPY_FILTER_WORKERID':[67]}}) # 指定某个 worker 回写
+    #sender.send({'command':'test','settings':{'VREDIS_FILTER_WORKERID':[67]}}) # 指定某个 worker 回写
     sender.send({'command':'test'}) # 不指定则在DEBUG 状态下随机选一个进行回写

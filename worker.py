@@ -26,11 +26,11 @@ class Worker(common.Initer):
 
         self.lock           = RLock()
         self.pub            = self.rds.pubsub()
-        self.pub.subscribe(defaults.VSCRAPY_PUBLISH_WORKER)
+        self.pub.subscribe(defaults.VREDIS_PUBLISH_WORKER)
 
         self.local_task     = queue.Queue()
         self.setting_task   = queue.Queue()
-        self.workerid       = self.rds.hincrby(defaults.VSCRAPY_WORKER, defaults.VSCRAPY_WORKER_ID)\
+        self.workerid       = self.rds.hincrby(defaults.VREDIS_WORKER, defaults.VREDIS_WORKER_ID)\
                                 if workerid is None else workerid
 
         self.tasklist       = set()
@@ -52,7 +52,7 @@ class Worker(common.Initer):
 
     # 检查链接状态
     def check_connect(self, taskid):
-        rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
+        rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, taskid)
         return bool(self.rds.pubsub_numsub(rname)[0][1])
 
     # 拆分函数
@@ -108,7 +108,7 @@ class Worker(common.Initer):
                     for i in range(num):
                         if self.check_connect(taskid): # 用来测试发送端是否断开连接的接口。检测端口还是有点耦合。
                             # 用来测试错误日志信息得回传
-                            rname = '{}:{}'.format(defaults.VSCRAPY_PUBLISH_SENDER, taskid)
+                            rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, taskid)
                             assert i<100 #;time.sleep(.01)
                             print(i)
                 #======================================
@@ -129,7 +129,7 @@ class Worker(common.Initer):
                 order       = start[1][3]
                 rds         = self.rds
                 valve       = Valve(taskid, workerid)
-                rdm         = self.rds.hincrby(defaults.VSCRAPY_WORKER, taskid)
+                rdm         = self.rds.hincrby(defaults.VREDIS_WORKER, taskid)
                 # 阀门过滤，有配置用配置，没有配置就会用 defaults 里面的默认参数
                 # 使用时就当作一般的 defaults 来进行配置即可。
                 try:
@@ -143,7 +143,7 @@ class Worker(common.Initer):
                         err_callback,a,kw,_,_,_ = err
                         err_callback(*a,**kw,msg=traceback.format_exc())
                 finally:
-                    self.rds.hdel(defaults.VSCRAPY_WORKER, taskid)
+                    self.rds.hdel(defaults.VREDIS_WORKER, taskid)
                     if stop is not None:
                         stop_callback,a,kw,_,_,_ = stop
                         stop_callback(*a,**kw)
@@ -154,12 +154,12 @@ class Worker(common.Initer):
             task(func,args,kwargs,start,err,stop)
 
     def process_run_task(self):
-        for i in range(defaults.VSCRAPY_WORKER_THREAD_NUM):
+        for i in range(defaults.VREDIS_WORKER_THREAD_NUM):
             Thread(target=self._thread,args=(self.local_task,)).start()
 
     # 动态配置需额外开启另一条线程执行，防止线程池卡死时无法进行配置的情况。
     def process_run_set(self):
-        for i in range(defaults.VSCRAPY_WORKER_THREAD_SETTING_NUM):
+        for i in range(defaults.VREDIS_WORKER_THREAD_SETTING_NUM):
             Thread(target=self._thread,args=(self.setting_task,)).start()
 
 

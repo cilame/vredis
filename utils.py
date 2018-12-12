@@ -49,21 +49,21 @@ class stdhooker:
             # 管道架设在这里，现在发现用 valve 来进行配置还挺方便的，能保证任务隔离，动态配置时候还很方便。
             if self._filter(taskid,workerid,valve,rdm): 
                 send_to_pipeline_real_time(taskid,workerid,order,rds,_text_)
-            if valve.VSCRAPY_KEEP_CONSOLE_LOG:
+            if valve.VREDIS_KEEP_CONSOLE_LOG:
                 self.__org_func__.write(_text_ + '\n')
 
     def _filter(self,taskid,workerid,valve,rdm):
-        if valve.VSCRAPY_FILTER_RANDOM_ONE \
-            and valve.VSCRAPY_FILTER_TASKID is None\
-            and valve.VSCRAPY_FILTER_WORKERID is None:
+        if valve.VREDIS_FILTER_RANDOM_ONE \
+            and valve.VREDIS_FILTER_TASKID is None\
+            and valve.VREDIS_FILTER_WORKERID is None:
             return rdm == 1
         else:
-            if valve.VSCRAPY_FILTER_WORKERID is not None:
-                r1 = True if workerid in valve.VSCRAPY_FILTER_WORKERID else False
+            if valve.VREDIS_FILTER_WORKERID is not None:
+                r1 = True if workerid in valve.VREDIS_FILTER_WORKERID else False
             else:
                 r1 = True
-            if valve.VSCRAPY_FILTER_TASKID is not None:
-                r2 = True if taskid in valve.VSCRAPY_FILTER_TASKID else False
+            if valve.VREDIS_FILTER_TASKID is not None:
+                r2 = True if taskid in valve.VREDIS_FILTER_TASKID else False
             else:
                 r2 = True
             return r1 and r2
@@ -164,36 +164,36 @@ def checked_order(order):
         debug = order['settings']['DEBUG'] if 'DEBUG' in order['settings'] else defaults.DEBUG
         if order['command'] == 'list':
             d = dict(
-                VSCRAPY_KEEP_REALTIME_LOG = True, # 工作端执行结果实时回显，因为该命令返回数据量少所以需要全部回显
-                VSCRAPY_FILTER_RANDOM_ONE = False,# 默认关闭，如果没有设置过滤的 taskid或 workerid则随机选一个回显
-                VSCRAPY_KEEP_CONSOLE_LOG = False  # 默认关闭，保持工作端的打印输出
+                VREDIS_KEEP_REALTIME_LOG = True, # 工作端执行结果实时回显，因为该命令返回数据量少所以需要全部回显
+                VREDIS_FILTER_RANDOM_ONE = False,# 默认关闭，如果没有设置过滤的 taskid或 workerid则随机选一个回显
+                VREDIS_KEEP_CONSOLE_LOG = False  # 默认关闭，保持工作端的打印输出
             )
         elif order['command'] == 'run':
             d = dict(
-                VSCRAPY_KEEP_REALTIME_LOG = bool(debug), # DEBUG 默认则会实时回显
-                VSCRAPY_FILTER_RANDOM_ONE = True, # 默认开启
-                VSCRAPY_KEEP_CONSOLE_LOG = False  # 默认关闭
+                VREDIS_KEEP_REALTIME_LOG = bool(debug), # DEBUG 默认则会实时回显
+                VREDIS_FILTER_RANDOM_ONE = True, # 默认开启
+                VREDIS_KEEP_CONSOLE_LOG = False  # 默认关闭
             )
         elif order['command'] == 'attach':
             # TODO 后续根据实际情况配置
             d = dict(
-                VSCRAPY_KEEP_REALTIME_LOG = True,
-                VSCRAPY_FILTER_RANDOM_ONE = False,
-                VSCRAPY_KEEP_CONSOLE_LOG = False
+                VREDIS_KEEP_REALTIME_LOG = True,
+                VREDIS_FILTER_RANDOM_ONE = False,
+                VREDIS_KEEP_CONSOLE_LOG = False
             )
         elif order['command'] == 'dump':
             # TODO 后续根据实际情况配置
             d = dict(
-                VSCRAPY_KEEP_REALTIME_LOG = True,
-                VSCRAPY_FILTER_RANDOM_ONE = False,
-                VSCRAPY_KEEP_CONSOLE_LOG = False
+                VREDIS_KEEP_REALTIME_LOG = True,
+                VREDIS_FILTER_RANDOM_ONE = False,
+                VREDIS_KEEP_CONSOLE_LOG = False
             )
         elif order['command'] == 'test':
             # TODO 后续根据实际情况配置
             d = dict(
-                VSCRAPY_KEEP_REALTIME_LOG = True,
-                VSCRAPY_FILTER_RANDOM_ONE = True,
-                VSCRAPY_KEEP_CONSOLE_LOG = True    # 该工具开发时，worker端调试需要
+                VREDIS_KEEP_REALTIME_LOG = True,
+                VREDIS_FILTER_RANDOM_ONE = True,
+                VREDIS_KEEP_CONSOLE_LOG = True    # 该工具开发时，worker端调试需要
             )
         else:
             d = {}
@@ -228,8 +228,8 @@ def checked_order(order):
                 raise MustDictType('order:settings "{}" must be a dict type.'\
                     .format(order['settings']))
         for i in order:
-            if i not in defaults.VSCRAPY_COMMAND_STRUCT:
-                raise NotInDefaultCommand('{} not in {}'.format(i,defaults.VSCRAPY_COMMAND_STRUCT))
+            if i not in defaults.VREDIS_COMMAND_STRUCT:
+                raise NotInDefaultCommand('{} not in {}'.format(i,defaults.VREDIS_COMMAND_STRUCT))
         return defaults_settings(order)
 
     if type(order) != dict:
@@ -237,8 +237,8 @@ def checked_order(order):
             .format(order))
     if 'command' not in order:
         raise 'order must has a "command" key'
-    if order['command'] not in defaults.VSCRAPY_COMMAND_TYPES:
-        raise MustInCommandList('{} not in {}'.format(order['command'],defaults.VSCRAPY_COMMAND_TYPES))
+    if order['command'] not in defaults.VREDIS_COMMAND_TYPES:
+        raise MustInCommandList('{} not in {}'.format(order['command'],defaults.VREDIS_COMMAND_TYPES))
 
 
     # 结构检查，并填充默认值，使得传输更具备结构性
@@ -260,9 +260,9 @@ def checked_order(order):
 # if __name__ == '__main__':
 #     v = Valve(1,2)
 #     s = Valve(3,4)
-#     print('unchange:',v.VSCRAPY_SENDER_RUN)
-#     print('unchange:',s.VSCRAPY_SENDER_RUN)
-#     v.VSCRAPY_SENDER_RUN = 333
-#     print('change:',v.VSCRAPY_SENDER_RUN)
-#     print('change:',s.VSCRAPY_SENDER_RUN)
+#     print('unchange:',v.VREDIS_SENDER_RUN)
+#     print('unchange:',s.VREDIS_SENDER_RUN)
+#     v.VREDIS_SENDER_RUN = 333
+#     print('change:',v.VREDIS_SENDER_RUN)
+#     print('change:',s.VREDIS_SENDER_RUN)
 #     print(v.__valves__)

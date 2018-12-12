@@ -4,7 +4,7 @@ from utils import find_task_locals
 
 
 
-# 目前要根据 defaults.VSCRAPY_COMMAND_TYPES 里面的参数进行开发各自的执行指令的方式
+# 目前要根据 defaults.VREDIS_COMMAND_TYPES 里面的参数进行开发各自的执行指令的方式
 
 def list_command(cls, taskid, workerid, order):
 
