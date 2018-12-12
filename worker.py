@@ -10,7 +10,7 @@ import logging
 import defaults
 import common
 from utils import hook_console, _stdout, _stderr, Valve
-from pipline import send_to_pipline
+from pipeline import send_to_pipeline
 from order import list_command
 
 class Worker(common.Initer):
@@ -66,9 +66,9 @@ class Worker(common.Initer):
         def _task_func(task_func):
             def pack_task(*a,**kw):
                 # 给任务注入“开始回调”、“错误回调”和“停止回调”的函数,放进线程执行队列
-                _start = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'start')
-                _error = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'error')
-                _stop  = self.disassemble_func(send_to_pipline)(self,taskid,workerid,order,'stop')
+                _start = self.disassemble_func(send_to_pipeline)(self,taskid,workerid,order,'start')
+                _error = self.disassemble_func(send_to_pipeline)(self,taskid,workerid,order,'error')
+                _stop  = self.disassemble_func(send_to_pipeline)(self,taskid,workerid,order,'stop')
                 _task  = self.disassemble_func(task_func,start=_start,err=_error,stop=_stop)(*a,**kw)
                 _queue.put(_task)
             return pack_task

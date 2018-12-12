@@ -7,7 +7,7 @@ import random
 
 import defaults
 import common
-from pipline import from_pipline
+from pipeline import from_pipeline
 from utils import checked_order
 
 class Sender(common.Initer):
@@ -44,7 +44,7 @@ class Sender(common.Initer):
     def process_run(self):
         workernum = len(self.start_worker)
         while True and workernum:
-            runinfo = from_pipline(self, self.taskid, 'run')
+            runinfo = from_pipeline(self, self.taskid, 'run')
             if runinfo and runinfo['piptype'] == 'realtime':
                 print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
             if self.taskstop and runinfo is None:
@@ -60,7 +60,7 @@ class Sender(common.Initer):
             if idx == workernum:
                 self.taskstop = True
                 break
-            stopinfo = from_pipline(self, self.taskid, 'stop')
+            stopinfo = from_pipeline(self, self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
                 idx += 1
                 over_break = defaults.VSCRAPY_OVER_BREAK
@@ -81,7 +81,7 @@ class Sender(common.Initer):
         print('receive worker num:', self.pubnum)
         start_worker = []
         for _ in range(self.pubnum):
-            worker = from_pipline(self, self.taskid, 'start')
+            worker = from_pipeline(self, self.taskid, 'start')
             if worker:
                 if worker['msg'] is None:
                     start_worker.append(worker)

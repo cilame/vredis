@@ -3,7 +3,7 @@ import inspect
 import logging
 import defaults
 
-from pipline import send_to_pipline_real_time
+from pipeline import send_to_pipeline_real_time
 from error import (
     NotInDefaultsSetting,
     NotInDefaultCommand,
@@ -48,7 +48,7 @@ class stdhooker:
 
             # 管道架设在这里，现在发现用 valve 来进行配置还挺方便的，能保证任务隔离，动态配置时候还很方便。
             if self._filter(taskid,workerid,valve,rdm): 
-                send_to_pipline_real_time(taskid,workerid,order,rds,_text_)
+                send_to_pipeline_real_time(taskid,workerid,order,rds,_text_)
             if valve.VSCRAPY_KEEP_CONSOLE_LOG:
                 self.__org_func__.write(_text_ + '\n')
 
