@@ -38,8 +38,8 @@ VREDIS_WORKER_THREAD_SETTING_NUM = 3
 # attach 接入某个任务队列，修改其日志输出模式，让其向任务端传入日志，
     # set 由于使用场景不多，替换该功能层级，作为 attach 的一个部分，
     # connect 也将包含该功能，作为其 attach 两个下数功能之一的带参数的功能部。
-# dump   取数据（不在run执行中设定输出方式，默认将获取数据传入redis）
-VREDIS_COMMAND_TYPES = ['list','run','attach','dump','test']
+# 去除dump功能，因为dump功能和线上命令的相关性不大。
+VREDIS_COMMAND_TYPES = ['list','run','attach','test'] 
 VREDIS_COMMAND_STRUCT = {'command','subcommand','settings'}
 
 
@@ -50,13 +50,18 @@ VREDIS_COMMAND_STRUCT = {'command','subcommand','settings'}
 # 这个链接状态可作为一个开关来对 worker 本身进行一定执行控制.
 DEBUG = True
 
-# 实时回写控制台日志
-VREDIS_KEEP_REALTIME_LOG = True
-VREDIS_KEEP_CONSOLE_LOG = True
 
+# 实时回写控制台日志
 # 随机选择一个任务进行实时日志回写
-VREDIS_FILTER_RANDOM_ONE = True
 # 当指定 taskid 和 workerid 进行过滤输出时，“随机选择一个”的配置就会失效
+# 如果这里不设置的话，就默认是全部
+VREDIS_KEEP_LOG_CONSOLE = True
+VREDIS_FILTER_LOG_RANDOM_ONE = True
+VREDIS_FILTER_LOG_TASKID = None
+VREDIS_FILTER_LOG_WORKERID = None
+
+# 用以过滤执行的任务，默认是全部都执行任务
+# 注意，执行任务和执行回写是两个不同配置，请注意。
+# 并且执行任务没有 “随机选择一个” 执行的 DEBUG 选择
 VREDIS_FILTER_TASKID = None
 VREDIS_FILTER_WORKERID = None
-# 如果这里不设置的话，就默认是全部

@@ -47,26 +47,10 @@ class stdhooker:
             _text_ = '[{}:{}] '.format(taskid,workerid) + _text[0]
 
             # 管道架设在这里，现在发现用 valve 来进行配置还挺方便的，能保证任务隔离，动态配置时候还很方便。
-            if self._filter(taskid,workerid,valve,rdm): 
+            if log_filter(taskid,workerid,valve,rdm): 
                 send_to_pipeline_real_time(taskid,workerid,order,rds,_text_)
-            if valve.VREDIS_KEEP_CONSOLE_LOG:
+            if valve.VREDIS_KEEP_LOG_CONSOLE:
                 self.__org_func__.write(_text_ + '\n')
-
-    def _filter(self,taskid,workerid,valve,rdm):
-        if valve.VREDIS_FILTER_RANDOM_ONE \
-            and valve.VREDIS_FILTER_TASKID is None\
-            and valve.VREDIS_FILTER_WORKERID is None:
-            return rdm == 1
-        else:
-            if valve.VREDIS_FILTER_WORKERID is not None:
-                r1 = True if workerid in valve.VREDIS_FILTER_WORKERID else False
-            else:
-                r1 = True
-            if valve.VREDIS_FILTER_TASKID is not None:
-                r2 = True if taskid in valve.VREDIS_FILTER_TASKID else False
-            else:
-                r2 = True
-            return r1 and r2
 
     def flush(self):
         self.__org_func__.flush()
@@ -102,6 +86,42 @@ def find_task_locals():
                 i[0].f_locals['rdm']
             break
     return _taskid_workerid_order_rds_valve_rdm_
+
+# 阀门过滤器1
+def log_filter(taskid,workerid,valve,rdm):
+    # 这里不把 find_task_locals 函数包装进去，
+    # 是因为前置需要用到 find_task_locals 函数的返回值进行判断
+    if valve.VREDIS_FILTER_LOG_RANDOM_ONE \
+        and valve.VREDIS_FILTER_LOG_TASKID is None\
+        and valve.VREDIS_FILTER_LOG_WORKERID is None:
+        return rdm == 1
+    else:
+        if valve.VREDIS_FILTER_LOG_WORKERID is not None:
+            r1 = True if workerid in valve.VREDIS_FILTER_LOG_WORKERID else False
+        else:
+            r1 = True
+        if valve.VREDIS_FILTER_LOG_TASKID is not None:
+            r2 = True if taskid in valve.VREDIS_FILTER_LOG_TASKID else False
+        else:
+            r2 = True
+        return r1 and r2
+
+# 阀门过滤器2
+def order_filter():
+    taskid,workerid,order,rds,valve,rdm = find_task_locals()
+    if valve.VREDIS_FILTER_WORKERID is not None:
+        r1 = True if workerid in valve.VREDIS_FILTER_WORKERID else False
+    else:
+        r1 = True
+    if valve.VREDIS_FILTER_TASKID is not None:
+        r2 = True if taskid in valve.VREDIS_FILTER_TASKID else False
+    else:
+        r2 = True
+    return r1 and r2
+
+
+
+
 
 
 # 阀门转移到 utils 里面，因为几乎可以作为较为通用的工作来使用
@@ -146,10 +166,6 @@ class Valve:
 
 
 
-
-
-
-
 #=======================
 # 这里是 sender 端的函数
 #=======================
@@ -160,40 +176,34 @@ def checked_order(order):
 
 
     def defaults_settings(order):
+        # 针对不同指令实现不同的默认参数配置
+
         order['settings'] = {} if order['settings'] is None else order['settings']
         debug = order['settings']['DEBUG'] if 'DEBUG' in order['settings'] else defaults.DEBUG
         if order['command'] == 'list':
             d = dict(
-                VREDIS_KEEP_REALTIME_LOG = True, # 工作端执行结果实时回显，因为该命令返回数据量少所以需要全部回显
-                VREDIS_FILTER_RANDOM_ONE = False,# 默认关闭，如果没有设置过滤的 taskid或 workerid则随机选一个回显
-                VREDIS_KEEP_CONSOLE_LOG = False  # 默认关闭，保持工作端的打印输出
+                VREDIS_KEEP_LOG_CONSOLE         = bool(debug),  # 默认关闭，是否保持工作端的打印输出 
+                VREDIS_FILTER_LOG_RANDOM_ONE    = False,        # 默认关闭，如果没有设置过滤的 taskid或 workerid，是否随机选一个回显
             )
         elif order['command'] == 'run':
             d = dict(
-                VREDIS_KEEP_REALTIME_LOG = bool(debug), # DEBUG 默认则会实时回显
-                VREDIS_FILTER_RANDOM_ONE = True, # 默认开启
-                VREDIS_KEEP_CONSOLE_LOG = False  # 默认关闭
+                VREDIS_KEEP_LOG_CONSOLE         = bool(debug),
+                VREDIS_FILTER_LOG_RANDOM_ONE    = True,         # 如果想要不回显就直接
             )
+            if not bool(debug): 
+                d['VREDIS_FILTER_LOG_TASKID'] = []              # 不回显的配置方式
+                d['VREDIS_FILTER_LOG_WORKERID'] = []
         elif order['command'] == 'attach':
             # TODO 后续根据实际情况配置
             d = dict(
-                VREDIS_KEEP_REALTIME_LOG = True,
-                VREDIS_FILTER_RANDOM_ONE = False,
-                VREDIS_KEEP_CONSOLE_LOG = False
-            )
-        elif order['command'] == 'dump':
-            # TODO 后续根据实际情况配置
-            d = dict(
-                VREDIS_KEEP_REALTIME_LOG = True,
-                VREDIS_FILTER_RANDOM_ONE = False,
-                VREDIS_KEEP_CONSOLE_LOG = False
+                VREDIS_KEEP_LOG_CONSOLE         = bool(debug),
+                VREDIS_FILTER_LOG_RANDOM_ONE    = False,
             )
         elif order['command'] == 'test':
             # TODO 后续根据实际情况配置
             d = dict(
-                VREDIS_KEEP_REALTIME_LOG = True,
-                VREDIS_FILTER_RANDOM_ONE = True,
-                VREDIS_KEEP_CONSOLE_LOG = True    # 该工具开发时，worker端调试需要
+                VREDIS_KEEP_LOG_CONSOLE         = bool(debug),    # 该工具开发时，worker端调试需要开启这里
+                VREDIS_FILTER_LOG_RANDOM_ONE    = True,
             )
         else:
             d = {}
@@ -246,7 +256,6 @@ def checked_order(order):
     if order['command'] == 'list':  order = check_command(order, ['alive', 'check'])
     if order['command'] == 'run':   pass # TODO
     if order['command'] == 'attach':order = check_command(order, ['set', 'connect'])
-    if order['command'] == 'dump':  pass
     if order['command'] == 'test':  order = check_command(order)
     return order
 

@@ -134,5 +134,7 @@ class Sender(common.Initer):
 
 if __name__ == '__main__':
     sender = Sender.from_settings(host='47.99.126.229',password='vilame')
-    #sender.send({'command':'test','settings':{'VREDIS_FILTER_WORKERID':[67]}}) # 指定某个 worker 回写
+    #sender.send({'command':'test','settings':{'VREDIS_FILTER_LOG_WORKERID':[67]}}) # 指定某个 worker 回写
+    #sender.send({'command':'test','settings':{'VREDIS_FILTER_TASKID':[67]}}) # 指定某个 taskid 执行任务
+    #sender.send({'command':'list','settings':{'VREDIS_FILTER_TASKID':[29]}})
     sender.send({'command':'test'}) # 不指定则在DEBUG 状态下随机选一个进行回写
