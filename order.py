@@ -1,8 +1,8 @@
 import platform
 
-import common
-from error import UndevelopmentSubcommand
-from utils import (
+from . import common
+from .error import UndevelopmentSubcommand
+from .utils import (
     order_filter, 
     find_task_locals_by_thread,
     TaskEnv,
@@ -80,7 +80,8 @@ def test_command(cls, taskid, workerid, order):
 
 @od_filter
 def script_command(cls, taskid, workerid, order):
-    _,_,_,_,valve,_ = find_task_locals_by_thread()
+    taskid,workerid,order,rds,valve,rdm = find_task_locals_by_thread()
     with common.Initer.lock:
         taskenv = TaskEnv(taskid)
-        taskenv.mk_task_locals(valve.VREDIS_SCRIPT)
+        taskenv.mk_env_locals(valve.VREDIS_SCRIPT)
+        taskenv.mk_task_locals((taskid,workerid,order,rds,valve,rdm))

@@ -7,20 +7,20 @@ import queue
 import traceback
 import logging
 
-import defaults
-import common
-from utils import (
+from . import defaults
+from . import common
+from .utils import (
     hook_console, 
     _stdout, 
     _stderr, 
     Valve, 
     TaskEnv,
 )
-from pipeline import (
+from .pipeline import (
     send_to_pipeline,
     from_pipeline_execute,
 )
-from order import (
+from .order import (
     list_command,
     run_command,
     attach_command,
@@ -160,23 +160,22 @@ class Worker(common.Initer):
                     func_name   = ret['function'] # 抽取传递过来的函数名字
                     args        = ret['args']
                     kwargs      = ret['kwargs']
-                    func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
-                    taskenv     = TaskEnv.get_task_locals(taskid)
 
-                    # 这里需要通过 __very_unique_function_name__ 来挂钩，
-                    # 考虑搭到环境参数的传递，可能需要再魔改一下 TaskEnv.__taskenv__ 的数据结构
-                    # 可以在 script_commond 配置里面进行配置处理。
-                    exec(func_str,None,taskenv)
-                    with common.Initer.lock: 
-                        pass
-                        # print(func_str)
-                        # print(taskenv)
-                        # print('taskid',taskid,TaskEnv.get_task_locals(taskid))
+                    func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
+                    taskenv     = TaskEnv.get_env_locals(taskid)
+
+                    # 魔法参数，以及魔法的 task_locals，用于挂钩标准输出流
+                    __very_unique_function_name__ = None
+                    taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
+                    if valve.DEBUG and self.check_connect(taskid):
+                        exec(func_str,None,taskenv)
+                    else:
+                        # 这是为了考虑 redis 的存储量所做的队列清空处理
+                        continue
                 else:
-                    time.sleep(1)
+                    time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
             else:
-                with common.Initer.lock: print('sleep')
-                time.sleep(1)
+                time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
             
 
 
@@ -192,9 +191,17 @@ class Worker(common.Initer):
             Thread(target=self._thread_run).start()
 
     # 动态配置需额外开启另一条线程执行，防止线程池卡死时无法进行配置的情况。
-    def process_run_set(self):
-        for i in range(defaults.VREDIS_WORKER_THREAD_SETTING_NUM):
-            Thread(target=self._thread,args=(self.setting_task,)).start()
+    # 这里暂时是没有被用到的，后续再开发时候在处理
+    # def process_run_set(self):
+    #     for i in range(defaults.VREDIS_WORKER_THREAD_SETTING_NUM):
+    #         Thread(target=self._thread,args=(self.setting_task,)).start()
+
+
+_o_print = print
+def _lk_print(*a,**kw):
+    with common.Initer.lock:
+        _o_print(*a,**kw)
+__builtins__['print'] = _lk_print
 
 
 if __name__ == '__main__':

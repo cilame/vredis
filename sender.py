@@ -5,10 +5,10 @@ import json
 import logging
 import random
 
-import defaults
-import common
-from pipeline import from_pipeline, send_to_pipeline_execute
-from utils import checked_order
+from . import defaults
+from . import common
+from .pipeline import from_pipeline, send_to_pipeline_execute
+from .utils import checked_order
 
 class Sender(common.Initer):
     def __init__(self,
@@ -57,14 +57,14 @@ class Sender(common.Initer):
         idx = 0
         over_break = defaults.VREDIS_OVER_BREAK
         while True and not self.taskstop and workernum:
-            if idx == workernum:
-                self.taskstop = True
-                break
             stopinfo = from_pipeline(self, self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
                 idx += 1
                 over_break = defaults.VREDIS_OVER_BREAK
                 # print('worker stop:',stopinfo)
+            elif idx == workernum:
+                self.taskstop = True
+                break
             else:
                 if over_break == 1: # 防止 dead worker 影响停止
                     aliveworkernum = self.rds.pubsub_numsub(defaults.VREDIS_PUBLISH_WORKER)[0][1]
@@ -117,7 +117,8 @@ class Sender(common.Initer):
 
 
     def send_execute(self, taskid, function_name, args, kwargs):
-        send_to_pipeline_execute(self, taskid, function_name, args, kwargs)
+        if self.start_worker:
+            send_to_pipeline_execute(self, taskid, function_name, args, kwargs)
 
 
 
@@ -135,29 +136,3 @@ class Sender(common.Initer):
     def check_task_status(self, taskid=None, feature=None):
         # 通过id列表来统计任务执行的状态，feature 过滤方式
         pass
-
-
-
-
-
-
-
-
-import inspect
-def func(*a,**kw):
-    print('use func print:',a,kw)
-
-
-
-
-if __name__ == '__main__':
-    sender = Sender.from_settings(host='localhost')
-    #sender.send({'command':'test','settings':{'VREDIS_FILTER_LOG_WORKERID':[67]}}) # 指定某个 worker 回写
-    #sender.send({'command':'test','settings':{'VREDIS_FILTER_TASKID':[67]}}) # 指定某个 taskid 执行任务
-    #sender.send({'command':'list','settings':{'VREDIS_FILTER_TASKID':[29]}})
-    #sender.send({'command':'test'})
-
-    # 测试函数的单片执行处理
-    tid = sender.send({'command':'script','settings':{'VREDIS_SCRIPT':inspect.getsource(func)}})
-    for i in range(100):
-        sender.send_execute(tid, 'func', (i,), {'qqq':333})

@@ -1,7 +1,8 @@
 import json
+import time
 
-from error import NotInDefaultsSetting
-import defaults
+from .error import NotInDefaultsSetting
+from . import defaults
 
 # 收发函数的统一管理
 # 以下两个函数均服务于对 worker 端口信息回传的处理
@@ -27,8 +28,15 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None):
             _rname = '{}:{}'.format(defaults.VREDIS_SENDER_RUN, taskid)
             print(msg)
     if piptype =='stop':
-        try: cls.tasklist.remove(taskid)
-        except: pass
+        # 这里的停止需要考虑在消化队列为空的情况下才执行关闭
+        _cname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+        while cls.rds.llen(_cname):
+            time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
+        try:
+            # 这里后续需要考虑更加稳妥的 TaskEnv 的taskid移除问题。 
+            cls.tasklist.remove(taskid)
+        except: 
+            pass
         _rname = '{}:{}'.format(defaults.VREDIS_SENDER_STOP, taskid)
         # print('stop')
     rdata = {

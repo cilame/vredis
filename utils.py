@@ -1,10 +1,10 @@
 import sys
 import inspect
-import logging
-import defaults
+#import logging
 
-from pipeline import send_to_pipeline_real_time
-from error import (
+from . import defaults
+from .pipeline import send_to_pipeline_real_time
+from .error import (
     NotInDefaultsSetting,
     NotInDefaultCommand,
     MustDictType,
@@ -174,9 +174,9 @@ class TaskEnv:
         self.keyid = taskid if groupid is None else groupid
         if order_filter(): 
             if self.keyid not in TaskEnv.__taskenv__:
-                TaskEnv.__taskenv__[self.keyid] = {}
+                TaskEnv.__taskenv__[self.keyid] = {'env_local':{},'task_local':None}
 
-    def mk_task_locals(__very_unique_self__, __very_unique_script__):
+    def mk_env_locals(__very_unique_self__, __very_unique_script__):
         if order_filter():
             # script 是一个字符串的脚本，传入之后将针对该字符串的环境进行传递
             __very_unique_dict__ = {}
@@ -191,11 +191,22 @@ for __very_unique_item__ in locals():
            continue
     __very_unique_dict__[__very_unique_item__] = locals()[__very_unique_item__]
 ''')
-            TaskEnv.__taskenv__[__very_unique_self__.keyid].update(__very_unique_dict__)
+            TaskEnv.__taskenv__[__very_unique_self__.keyid]['env_local'].update(__very_unique_dict__)
+
+    def mk_task_locals(self, tupl):
+        if order_filter():
+            TaskEnv.__taskenv__[self.keyid]['task_local'] = tupl
+
+
+    @staticmethod
+    def get_env_locals(taskid):
+        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},'task_local':None})
+        return temp['env_local']
 
     @staticmethod
     def get_task_locals(taskid):
-        return TaskEnv.__taskenv__.get(taskid,{})
+        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},'task_local':None})
+        return temp['task_local']
 
     @staticmethod
     def delete(taskid):
