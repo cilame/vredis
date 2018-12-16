@@ -1,12 +1,18 @@
 import platform
+
+import common
 from error import UndevelopmentSubcommand
-from utils import order_filter
+from utils import (
+    order_filter, 
+    find_task_locals_by_thread,
+    TaskEnv,
+)
 
 
 # 目前要根据 defaults.VREDIS_COMMAND_TYPES 里面的参数进行开发各自的执行指令的方式
 
 
-
+# 装饰器，用以过滤执行的任务。与 defaults 中的 VREDIS_FILTER_TASKID 和 VREDIS_FILTER_WORKERID 配置相关
 def od_filter(func):
     def _od_filter(*a,**kw):
         if order_filter():
@@ -70,3 +76,11 @@ def test_command(cls, taskid, workerid, order):
         if cls.check_connect(taskid): # 用来测试发送端是否断开连接的接口。检测端口还是有点耦合。
             assert i<100 #;time.sleep(.01) # 测试异常情况的回传
             print(i)
+
+
+@od_filter
+def script_command(cls, taskid, workerid, order):
+    _,_,_,_,valve,_ = find_task_locals_by_thread()
+    with common.Initer.lock:
+        taskenv = TaskEnv(taskid)
+        taskenv.mk_task_locals(valve.VREDIS_SCRIPT)

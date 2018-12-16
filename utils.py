@@ -29,7 +29,7 @@ class stdhooker:
         self.__org_func__ = __org_stdout__ if hook.lower() == 'stdout' else __org_stderr__
 
     def write(self,text):
-        _taskid_workerid_order_rds_valve_rdm_ = find_task_locals()
+        _taskid_workerid_order_rds_valve_rdm_ = find_task_locals_by_thread()
         if _taskid_workerid_order_rds_valve_rdm_:
             taskid,workerid,order,rds,valve,rdm = _taskid_workerid_order_rds_valve_rdm_
             if taskid not in self.cache:
@@ -56,8 +56,9 @@ class stdhooker:
         self.__org_func__.flush()
 
     # 防止字典键存放 key（taskid）数量过高，每次 stop 锁住检查一次是否全部爬虫停止，若停止，执行该函数
-    def _clear_cache(self):
-        self.cache = {}
+    def _clear_cache(self,taskid):
+        if taskid in self.cache:
+            self.cache.pop(taskid)
 
 _stdout = stdhooker('stdout')
 _stderr = stdhooker('stderr')
@@ -73,7 +74,7 @@ def unhook_console(stdout=True,stderr=True):
 
 
 
-def find_task_locals():
+def find_task_locals_by_thread():
     _taskid_workerid_order_rds_valve_rdm_ = None
     for i in inspect.stack():
         if '__very_unique_function_name__' in i[0].f_locals and 'taskid' in i[0].f_locals:
@@ -89,8 +90,8 @@ def find_task_locals():
 
 # 阀门过滤器1
 def log_filter(taskid,workerid,valve,rdm):
-    # 这里不把 find_task_locals 函数包装进去，
-    # 是因为前置需要用到 find_task_locals 函数的返回值进行判断
+    # 这里不把 find_task_locals_by_thread 函数包装进去，
+    # 是因为前置需要用到 find_task_locals_by_thread 函数的返回值进行判断
     if valve.VREDIS_FILTER_LOG_RANDOM_ONE \
         and valve.VREDIS_FILTER_LOG_TASKID is None\
         and valve.VREDIS_FILTER_LOG_WORKERID is None:
@@ -108,7 +109,7 @@ def log_filter(taskid,workerid,valve,rdm):
 
 # 阀门过滤器2
 def order_filter():
-    taskid,workerid,order,rds,valve,rdm = find_task_locals()
+    taskid,workerid,order,rds,valve,rdm = find_task_locals_by_thread()
     if valve.VREDIS_FILTER_WORKERID is not None:
         r1 = True if workerid in valve.VREDIS_FILTER_WORKERID else False
     else:
@@ -136,8 +137,8 @@ class Valve:
     class NoneObject: pass
     # 需要全局处理的开关村都存放在这里
     __valves__ = {}
-    def __init__(self,taskid,workerid,groupid=None):
-        self.__dict__['keyid'] = 't{}:w{}'.format(taskid,workerid) if groupid is None else groupid
+    def __init__(self,taskid,groupid=None):
+        self.__dict__['keyid'] = taskid if groupid is None else groupid
         Valve.__valves__[self.keyid] = {}
 
     def __setattr__(self,attr,value):
@@ -161,6 +162,47 @@ class Valve:
                     raise NotInDefaultsSetting('[{}] {}'.format(self.keyid,key))
             Valve.__valves__[self.keyid].update(settings)
 
+    def delete(self,taskid):
+        if taskid in Valve.__valves__:
+            Valve.__valves__.pop(taskid)
+
+
+# 任务执行环境的处理，这里的类和阀门类很类似，不过主要是用于在缓存里面存放脚本环境的一种方式
+class TaskEnv:
+    __taskenv__ = {}
+    def __init__(self,taskid,groupid=None):
+        self.keyid = taskid if groupid is None else groupid
+        if order_filter(): 
+            if self.keyid not in TaskEnv.__taskenv__:
+                TaskEnv.__taskenv__[self.keyid] = {}
+
+    def mk_task_locals(__very_unique_self__, __very_unique_script__):
+        if order_filter():
+            # script 是一个字符串的脚本，传入之后将针对该字符串的环境进行传递
+            __very_unique_dict__ = {}
+            if __very_unique_script__ is not None:
+                exec(__very_unique_script__ + '''
+__very_unique_item__ = None
+for __very_unique_item__ in locals():
+    if __very_unique_item__ == '__very_unique_self__' or \
+       __very_unique_item__ == '__very_unique_dict__' or \
+       __very_unique_item__ == '__very_unique_script__' or \
+       __very_unique_item__ == '__very_unique_item__':
+           continue
+    __very_unique_dict__[__very_unique_item__] = locals()[__very_unique_item__]
+''')
+            TaskEnv.__taskenv__[__very_unique_self__.keyid].update(__very_unique_dict__)
+
+    @staticmethod
+    def get_task_locals(taskid):
+        return TaskEnv.__taskenv__.get(taskid,{})
+
+    @staticmethod
+    def delete(taskid):
+        if taskid in TaskEnv.__taskenv__:
+            TaskEnv.__taskenv__.pop(taskid)
+
+
 
 
 
@@ -183,27 +225,31 @@ def checked_order(order):
         if order['command'] == 'list':
             d = dict(
                 VREDIS_KEEP_LOG_CONSOLE         = bool(debug),  # 默认关闭，是否保持工作端的打印输出 
-                VREDIS_FILTER_LOG_RANDOM_ONE    = False,        # 默认关闭，如果没有设置过滤的 taskid或 workerid，是否随机选一个回显
+                VREDIS_FILTER_LOG_RANDOM_ONE    = False,
+                # 默认关闭，如果没有设置过滤的 taskid或 workerid，是否随机选一个回显
+                # 若关闭，且未设置过滤列表（任务id或工作id）则回写全部
+                # defaults 里面也是默认关闭这项的，这项主要是用于单独调试脚本，
+                # 多个任务同时回写看上去很乱，这只是为了一个更简化的个人使用方式。
+                # 这里写出来就是提醒一下存在这个可以配置的参数而已。
             )
         elif order['command'] == 'run':
             d = dict(
                 VREDIS_KEEP_LOG_CONSOLE         = bool(debug),
-                VREDIS_FILTER_LOG_RANDOM_ONE    = True,         # 如果想要不回显就直接
             )
-            if not bool(debug): 
-                d['VREDIS_FILTER_LOG_TASKID'] = []              # 不回显的配置方式
-                d['VREDIS_FILTER_LOG_WORKERID'] = []
         elif order['command'] == 'attach':
             # TODO 后续根据实际情况配置
             d = dict(
                 VREDIS_KEEP_LOG_CONSOLE         = bool(debug),
-                VREDIS_FILTER_LOG_RANDOM_ONE    = False,
+            )
+        elif order['command'] == 'script':
+            # TODO 后续根据实际情况配置
+            d = dict(
+                VREDIS_KEEP_LOG_CONSOLE         = bool(debug),    # 脚本的传递
             )
         elif order['command'] == 'test':
             # TODO 后续根据实际情况配置
             d = dict(
                 VREDIS_KEEP_LOG_CONSOLE         = bool(debug),    # 该工具开发时，worker端调试需要开启这里
-                VREDIS_FILTER_LOG_RANDOM_ONE    = True,
             )
         else:
             d = {}
@@ -256,6 +302,7 @@ def checked_order(order):
     if order['command'] == 'list':  order = check_command(order, ['alive', 'check'])
     if order['command'] == 'run':   pass # TODO
     if order['command'] == 'attach':order = check_command(order, ['set', 'connect'])
+    if order['command'] == 'script':order = check_command(order)
     if order['command'] == 'test':  order = check_command(order)
     return order
 

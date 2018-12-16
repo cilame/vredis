@@ -10,6 +10,8 @@ VREDIS_SENDER_TIMEOUT_START = 3
 VREDIS_SENDER_TIMEOUT_RUN   = 1
 VREDIS_SENDER_TIMEOUT_STOP  = 3
 
+# 用来发送执行任务的管道
+
 # 处理在 sender 端同步log时出现断连接的 worker 超时处理次数
 VREDIS_OVER_BREAK = 2
 
@@ -19,6 +21,12 @@ VREDIS_WORKER_ID = 'id'
 # 后续在程序中增加 VREDIS_WORKER + 'taskid' 作为一个自增的数字key，
 # 用以实现随机抽取一个进行回写的动作选择
 
+
+# 广播的任务的处理和队列任务的处理不一样。需要考虑怎么解决问题。
+VREDIS_TASK = 'vredis:task'
+VREDIS_TASK_TIMEOUT = 3
+
+
 # type: publish
 VREDIS_PUBLISH_WORKER = 'vredis:publish:worker'
 VREDIS_PUBLISH_SENDER = 'vredis:publish:sender'
@@ -26,7 +34,8 @@ VREDIS_PUBLISH_SENDER = 'vredis:publish:sender'
 # “修改配置” 的任务将会在非任务线程中实现。
 # 执行任务的线程数量，为防止线程过量导致问题，暂时是使用线程来实现功能。
 # 不过这里的配置已经是非常重要的 worker 全局配置了。
-VREDIS_WORKER_THREAD_NUM = 16
+VREDIS_WORKER_THREAD_PULL_NUM = 3
+VREDIS_WORKER_THREAD_RUN_NUM = 16
 VREDIS_WORKER_THREAD_SETTING_NUM = 3
 
 # 命令的类型，用来简单的约束开发
@@ -39,8 +48,16 @@ VREDIS_WORKER_THREAD_SETTING_NUM = 3
     # set 由于使用场景不多，替换该功能层级，作为 attach 的一个部分，
     # connect 也将包含该功能，作为其 attach 两个下数功能之一的带参数的功能部。
 # 去除dump功能，因为dump功能和线上命令的相关性不大。
-VREDIS_COMMAND_TYPES = ['list','run','attach','test'] 
+# 增加 script 的指令，这个功能主要是用于将脚本环境的传递
+VREDIS_COMMAND_TYPES = ['list','run','attach','test','script'] 
 VREDIS_COMMAND_STRUCT = {'command','subcommand','settings'}
+
+
+# 广播命令的传递结构是 {'command': <str> ,'subcommand': <dict> ,'settings': <dict> }
+# 其中关于 script 的传递需要通过 settings 进行配置，但是 settings 内部的参数有阀门类进行管制
+# 所以考虑到这一点，这边需要在 defaults 里面添加一个 VREDIS_SCRIPT 的参数来管理方便处理
+# 并且要注意的是，尽量在后续开发时候，不要让配置内容的接口变成分开传递，会有问题。
+VREDIS_SCRIPT = None
 
 
 
@@ -52,11 +69,11 @@ DEBUG = True
 
 
 # 实时回写控制台日志
-# 随机选择一个任务进行实时日志回写
+# 随机选择一个任务进行实时日志回写，“随机一个”和“指定taskid或指定workerid”互斥。
 # 当指定 taskid 和 workerid 进行过滤输出时，“随机选择一个”的配置就会失效
 # 如果这里不设置的话，就默认是全部
 VREDIS_KEEP_LOG_CONSOLE = True
-VREDIS_FILTER_LOG_RANDOM_ONE = True
+VREDIS_FILTER_LOG_RANDOM_ONE = False
 VREDIS_FILTER_LOG_TASKID = None
 VREDIS_FILTER_LOG_WORKERID = None
 
@@ -65,3 +82,9 @@ VREDIS_FILTER_LOG_WORKERID = None
 # 并且执行任务没有 “随机选择一个” 执行的 DEBUG 选择
 VREDIS_FILTER_TASKID = None
 VREDIS_FILTER_WORKERID = None
+
+
+
+
+
+

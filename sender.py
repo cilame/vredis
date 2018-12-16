@@ -7,7 +7,7 @@ import random
 
 import defaults
 import common
-from pipeline import from_pipeline
+from pipeline import from_pipeline, send_to_pipeline_execute
 from utils import checked_order
 
 class Sender(common.Initer):
@@ -104,13 +104,20 @@ class Sender(common.Initer):
             while not self.rds.pubsub_numsub(rname)[0][1]:
                 time.sleep(.15)
 
-        # 获取任务id 并广播出去
-        self.taskid = self.rds.hincrby(defaults.VREDIS_SENDER,defaults.VREDIS_SENDER_ID)
+        # 获取任务id 并广播出去，一个对象维护一个taskid
+        self.taskid = self.taskid if hasattr(self,'taskid') else \
+            self.rds.hincrby(defaults.VREDIS_SENDER,defaults.VREDIS_SENDER_ID)
         self.order  = {'taskid':self.taskid, 'order':checked_order(input_order)}
         if defaults.DEBUG:
             wait_connect_pub(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
         self.pubnum = self.rds.publish(defaults.VREDIS_PUBLISH_WORKER, json.dumps(self.order))
         self.send_status()
+        return self.taskid
+
+
+
+    def send_execute(self, taskid, function_name, args, kwargs):
+        send_to_pipeline_execute(self, taskid, function_name, args, kwargs)
 
 
 
@@ -132,9 +139,25 @@ class Sender(common.Initer):
 
 
 
+
+
+
+
+import inspect
+def func(*a,**kw):
+    print('use func print:',a,kw)
+
+
+
+
 if __name__ == '__main__':
-    sender = Sender.from_settings(host='47.99.126.229',password='vilame')
+    sender = Sender.from_settings(host='localhost')
     #sender.send({'command':'test','settings':{'VREDIS_FILTER_LOG_WORKERID':[67]}}) # 指定某个 worker 回写
     #sender.send({'command':'test','settings':{'VREDIS_FILTER_TASKID':[67]}}) # 指定某个 taskid 执行任务
     #sender.send({'command':'list','settings':{'VREDIS_FILTER_TASKID':[29]}})
-    sender.send({'command':'test'}) # 不指定则在DEBUG 状态下随机选一个进行回写
+    #sender.send({'command':'test'})
+
+    # 测试函数的单片执行处理
+    tid = sender.send({'command':'script','settings':{'VREDIS_SCRIPT':inspect.getsource(func)}})
+    for i in range(100):
+        sender.send_execute(tid, 'func', (i,), {'qqq':333})

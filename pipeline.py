@@ -15,6 +15,7 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None):
         _rname = '{}:{}'.format(defaults.VREDIS_SENDER_START, taskid)
         # print('start')
     if piptype =='run':
+        # 这里的 run 暂时没有信号传递的必要，以后都不会被用到
         _rname = '{}:{}'.format(defaults.VREDIS_SENDER_RUN, taskid)
     if piptype =='error':
         # 启动时的失败
@@ -59,8 +60,6 @@ def from_pipeline(cls, taskid, piptype=None):
     return rdata
 
 
-
-
 # 实时管道实现
 # 现在发现这种实时管道确实要前面的哪个管道好用很多，上面的管道也兼顾的信号发送的任务
 # 所以也不好废弃，而是兼顾在不同的功能上，先就目前这样好了。上面的管道类更偏向于一种信号的发送。
@@ -80,4 +79,29 @@ def send_to_pipeline_real_time(taskid,workerid,order,rds,msg):
 
 
 
+
+
+# 单片的任务指令的传递，这种只能用管道来实现才不会起执行的冲突
+def from_pipeline_execute(cls, taskid):
+    if type(taskid) == list:
+        _rname = ['{}:{}'.format(defaults.VREDIS_TASK,_taskid)for _taskid in sorted(taskid,reverse=True)]
+    else:
+        _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+    try:
+        _, ret = cls.rds.brpop(_rname, defaults.VREDIS_TASK_TIMEOUT)
+        rdata = json.loads(ret) # ret 必是一个 json 字符串。
+    except:
+        rdata = None
+    return rdata
+
+# 单片任务需要传递的就是直接执行的任务名字
+def send_to_pipeline_execute(cls, taskid, function_name, args, kwargs):
+    _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+    sdata = {
+        'taskid': taskid,
+        'function': function_name,
+        'args': args,
+        'kwargs': kwargs,
+    }
+    cls.rds.lpush(_rname, json.dumps(sdata))
 

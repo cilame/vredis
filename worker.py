@@ -9,13 +9,23 @@ import logging
 
 import defaults
 import common
-from utils import hook_console, _stdout, _stderr, Valve
-from pipeline import send_to_pipeline
+from utils import (
+    hook_console, 
+    _stdout, 
+    _stderr, 
+    Valve, 
+    TaskEnv,
+)
+from pipeline import (
+    send_to_pipeline,
+    from_pipeline_execute,
+)
 from order import (
     list_command,
     run_command,
     attach_command,
-    test_command
+    script_command,
+    test_command,
 )
 
 class Worker(common.Initer):
@@ -33,7 +43,7 @@ class Worker(common.Initer):
         self.pub            = self.rds.pubsub()
         self.pub.subscribe(defaults.VREDIS_PUBLISH_WORKER)
 
-        self.local_task     = queue.Queue()
+        self.pull_task      = queue.Queue()
         self.setting_task   = queue.Queue()
         self.workerid       = self.rds.hincrby(defaults.VREDIS_WORKER, defaults.VREDIS_WORKER_ID)\
                                 if workerid is None else workerid
@@ -89,28 +99,29 @@ class Worker(common.Initer):
             workerid    = self.workerid
             taskid      = order['taskid']
             order       = order['order']
-            task_looper = self.connect_work_queue(self.local_task,  taskid,workerid,order)
+            pull_looper = self.connect_work_queue(self.pull_task,   taskid,workerid,order)
             sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order)
             global list_command,run_command,attach_command,test_command
 
-            if   order['command'] == 'list':  task_looper(list_command)  (self,taskid,workerid,order)
-            elif order['command'] == 'run':   task_looper(run_command)   (self,taskid,workerid,order)
-            elif order['command'] == 'attach':task_looper(attach_command)(self,taskid,workerid,order)
-            elif order['command'] == 'test':  task_looper(test_command)  (self,taskid,workerid,order)
+            if   order['command'] == 'list':  pull_looper(list_command)  (self,taskid,workerid,order)
+            elif order['command'] == 'run':   pull_looper(run_command)   (self,taskid,workerid,order)
+            elif order['command'] == 'attach':pull_looper(attach_command)(self,taskid,workerid,order)
+            elif order['command'] == 'script':pull_looper(script_command)(self,taskid,workerid,order)
+            elif order['command'] == 'test':  pull_looper(test_command)  (self,taskid,workerid,order)
 
     def _thread(self,_queue):
         while True:
             func,args,kwargs,start,err,stop = _queue.get()
             def task(func,args,kwargs,start,err,stop):
                 # 为了使 stack 寻找时候定位当前的环境从而找到 taskid 来分割不同任务的日志环境
-                # 需要确保这里的 locals() 空间内拥有该函数名并且其余更深的环境没有该函数名字
-                # 具体使用详细见 utils 内的 hook 类的函数实现（听不懂就算了，总之就是很神奇）
-                __very_unique_function_name__ = func
+                # 需要确保这里的 locals() 空间内拥有该参数名并且其余的环境没有该参数名字
+                # 具体使用详细见 utils 内的 hook 类的函数实现（听不懂就算了，总之就是很魔法）
+                __very_unique_function_name__ = None
                 taskid      = start[1][1]
                 workerid    = start[1][2]
                 order       = start[1][3]
                 rds         = self.rds
-                valve       = Valve(taskid, workerid)
+                valve       = Valve(taskid)
                 rdm         = self.rds.hincrby(defaults.VREDIS_WORKER, taskid)
                 # 阀门过滤，有配置用配置，没有配置就会用 defaults 里面的默认参数
                 # 使用时就当作一般的 defaults 来进行配置即可。
@@ -119,25 +130,66 @@ class Worker(common.Initer):
                     if start is not None:
                         start_callback,a,kw,_,_,_ = start
                         start_callback(*a,**kw)
-                    __very_unique_function_name__(*args,**kwargs)
+                    func(*args,**kwargs)
                 except Exception as e:
                     if err is not None:
                         err_callback,a,kw,_,_,_ = err
                         err_callback(*a,**kw,msg=traceback.format_exc())
+                    valve.delete(taskid)
+                    TaskEnv.delete(taskid)
                 finally:
                     self.rds.hdel(defaults.VREDIS_WORKER, taskid)
                     if stop is not None:
                         stop_callback,a,kw,_,_,_ = stop
                         stop_callback(*a,**kw)
-                        with self.lock:
-                            if not self.tasklist:
-                                _stdout._clear_cache()
-                                _stderr._clear_cache()
+                    _stdout._clear_cache(taskid)
+                    _stderr._clear_cache(taskid)
+                    # valve.delete(taskid) 该处不应该直接删除，因为该线程属于配置线程
+                    # taskenv.delete(taskid)
             task(func,args,kwargs,start,err,stop)
 
+
+    def _thread_run(self):
+        # 这里需要考虑怎么实现环境的搭建和处理了。
+        while True:
+            #with common.Initer.lock: print(TaskEnv.__taskenv__)
+            if TaskEnv.__taskenv__:
+                ret = from_pipeline_execute(self, list(TaskEnv.__taskenv__))
+                if ret:
+                    taskid      = ret['taskid']
+                    func_name   = ret['function'] # 抽取传递过来的函数名字
+                    args        = ret['args']
+                    kwargs      = ret['kwargs']
+                    func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
+                    taskenv     = TaskEnv.get_task_locals(taskid)
+
+                    # 这里需要通过 __very_unique_function_name__ 来挂钩，
+                    # 考虑搭到环境参数的传递，可能需要再魔改一下 TaskEnv.__taskenv__ 的数据结构
+                    # 可以在 script_commond 配置里面进行配置处理。
+                    exec(func_str,None,taskenv)
+                    with common.Initer.lock: 
+                        pass
+                        # print(func_str)
+                        # print(taskenv)
+                        # print('taskid',taskid,TaskEnv.get_task_locals(taskid))
+                else:
+                    time.sleep(1)
+            else:
+                with common.Initer.lock: print('sleep')
+                time.sleep(1)
+            
+
+
+
+    # 用于将广播的任务信号拖拽下来进行环境配置的线程群
+    def process_pull_task(self):
+        for i in range(defaults.VREDIS_WORKER_THREAD_PULL_NUM):
+            Thread(target=self._thread,args=(self.pull_task,)).start()
+
+    # 直接执行任务的线程群
     def process_run_task(self):
-        for i in range(defaults.VREDIS_WORKER_THREAD_NUM):
-            Thread(target=self._thread,args=(self.local_task,)).start()
+        for i in range(defaults.VREDIS_WORKER_THREAD_RUN_NUM):
+            Thread(target=self._thread_run).start()
 
     # 动态配置需额外开启另一条线程执行，防止线程池卡死时无法进行配置的情况。
     def process_run_set(self):
@@ -146,5 +198,5 @@ class Worker(common.Initer):
 
 
 if __name__ == '__main__':
-    wk = Worker.from_settings(host='47.99.126.229',password='vilame')
+    wk = Worker.from_settings(host='localhost')
     wk.start()
