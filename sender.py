@@ -45,7 +45,6 @@ class Sender(common.Initer):
     def task_is_empty(self):
         _rname = '{}:{}'.format(defaults.VREDIS_TASK, self.taskid)
         ret = self.rds.llen(_rname)
-        print(ret, _rname)
         return ret == 0
 
 

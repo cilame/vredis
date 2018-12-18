@@ -167,7 +167,7 @@ class Worker(common.Initer):
                     # 魔法参数，以及魔法的 task_locals，用于挂钩标准输出流
                     __very_unique_function_name__ = None
                     taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
-                    if valve.DEBUG and self.check_connect(taskid):
+                    if self.check_connect(taskid):
                         try:
                             exec(func_str,None,taskenv)
                         except:
