@@ -41,13 +41,21 @@ class Sender(common.Initer):
         return cls(rds=rds,**d)
 
 
+
+    def task_is_empty(self):
+        _rname = '{}:{}'.format(defaults.VREDIS_TASK, self.taskid)
+        ret = self.rds.llen(_rname)
+        print(ret, _rname)
+        return ret == 0
+
+
     def process_run(self):
         workernum = len(self.start_worker)
         while True and workernum:
             runinfo = from_pipeline(self, self.taskid, 'run')
             if runinfo and runinfo['piptype'] == 'realtime':
                 print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
-            if self.taskstop and runinfo is None:
+            if self.taskstop and runinfo is None and self.task_is_empty():
                 break
         print('all task stop.')
 
@@ -115,24 +123,6 @@ class Sender(common.Initer):
         return self.taskid
 
 
-
     def send_execute(self, taskid, function_name, args, kwargs):
         if self.start_worker:
             send_to_pipeline_execute(self, taskid, function_name, args, kwargs)
-
-
-
-    def send_console(self, consoleline):
-        # 输送命令行执行的命令过去，或许有些程序需要使用控制台进行一些配置类的操作。
-        # 就是一个 send 函数的简单包装。
-        pass
-
-
-    def check_worker_status(self, workerid=None, feature=None):
-        # 通过id检查，某些工作端的状态，默认全部。一般过滤用 feature，不配置信息量会比较少
-        # 执行流程就是先检查存活状态，然后通过存活的线程决定下一步怎么处理
-        pass
-
-    def check_task_status(self, taskid=None, feature=None):
-        # 通过id列表来统计任务执行的状态，feature 过滤方式
-        pass

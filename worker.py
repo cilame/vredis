@@ -168,7 +168,10 @@ class Worker(common.Initer):
                     __very_unique_function_name__ = None
                     taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
                     if valve.DEBUG and self.check_connect(taskid):
-                        exec(func_str,None,taskenv)
+                        try:
+                            exec(func_str,None,taskenv)
+                        except:
+                            print(traceback.format_exc())
                     else:
                         # 这是为了考虑 redis 的存储量所做的队列清空处理
                         continue
@@ -203,7 +206,3 @@ def _lk_print(*a,**kw):
         _o_print(*a,**kw)
 __builtins__['print'] = _lk_print
 
-
-if __name__ == '__main__':
-    wk = Worker.from_settings(host='localhost')
-    wk.start()

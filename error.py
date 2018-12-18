@@ -15,3 +15,6 @@ class MustInCommandList(Exception):
 
 class UndevelopmentSubcommand(Exception):
 	pass
+
+class SenderAlreadyStarted(Exception):
+    pass
