@@ -63,22 +63,6 @@ def attach_command(cls, taskid, workerid, order):
 
 
 @od_filter
-def test_command(cls, taskid, workerid, order):
-    # 测试任务,后期需要根据 order 来实现任务处理，目前先简单实现一个函数和一个异常
-    # 用以测试一般任务执行回传和错误回传
-    # 这里直接使用taskid 可能存在问题，因为当前环境的taskid 是会动态改变的，所以当前的检测会有问题
-    # 所以在脚本执行的时候需要将靠谱的环境参数也要添加进去，不然不能根据 taskid 来检测发送端的断连。
-    # import os
-    # v = os.popen('pip install requests')
-    # print(v.read())
-    # 后续内部参数类似于 num 这种参数都将会一并并入对 order 参数的处理当中。
-    for i in range(200):
-        if cls.check_connect(taskid): # 用来测试发送端是否断开连接的接口。检测端口还是有点耦合。
-            assert i<100 #;time.sleep(.01) # 测试异常情况的回传
-            print(i)
-
-
-@od_filter
 def script_command(cls, taskid, workerid, order):
     taskid,workerid,order,rds,valve,rdm = find_task_locals_by_thread()
     with common.Initer.lock:

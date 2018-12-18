@@ -120,6 +120,14 @@ def order_filter():
         r2 = True
     return r1 and r2
 
+# 检查链接状态
+def check_connect(rds, taskid):
+    rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, taskid)
+    return bool(rds.pubsub_numsub(rname)[0][1])
+
+
+
+
 
 
 
@@ -165,6 +173,9 @@ class Valve:
     def delete(self,taskid):
         if taskid in Valve.__valves__:
             Valve.__valves__.pop(taskid)
+
+    def clear(self):
+        Valve.__valves__ = {}
 
 
 # 任务执行环境的处理，这里的类和阀门类很类似，不过主要是用于在缓存里面存放脚本环境的一种方式
@@ -213,6 +224,10 @@ for __very_unique_item__ in locals():
         if taskid in TaskEnv.__taskenv__:
             TaskEnv.__taskenv__.pop(taskid)
 
+    @staticmethod
+    def clear():
+        TaskEnv.__taskenv__ = {}
+
 
 
 
@@ -256,11 +271,6 @@ def checked_order(order):
             # TODO 后续根据实际情况配置
             d = dict(
                 VREDIS_KEEP_LOG_CONSOLE         = bool(debug),    # 脚本的传递
-            )
-        elif order['command'] == 'test':
-            # TODO 后续根据实际情况配置
-            d = dict(
-                VREDIS_KEEP_LOG_CONSOLE         = bool(debug),    # 该工具开发时，worker端调试需要开启这里
             )
         else:
             d = {}
@@ -314,22 +324,5 @@ def checked_order(order):
     if order['command'] == 'run':   pass # TODO
     if order['command'] == 'attach':order = check_command(order, ['set', 'connect'])
     if order['command'] == 'script':order = check_command(order)
-    if order['command'] == 'test':  order = check_command(order)
     return order
 
-
-
-
-
-
-
-
-# if __name__ == '__main__':
-#     v = Valve(1,2)
-#     s = Valve(3,4)
-#     print('unchange:',v.VREDIS_SENDER_RUN)
-#     print('unchange:',s.VREDIS_SENDER_RUN)
-#     v.VREDIS_SENDER_RUN = 333
-#     print('change:',v.VREDIS_SENDER_RUN)
-#     print('change:',s.VREDIS_SENDER_RUN)
-#     print(v.__valves__)

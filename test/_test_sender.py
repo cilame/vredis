@@ -24,7 +24,7 @@ def some(i):
 def some2(i):
     print('use func2:{}'.format(i))
 
-for i in range(1000):
+for i in range(100):
     some(i)
     some2(i)
 

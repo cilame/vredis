@@ -49,3 +49,5 @@ class Pipe:
         pass
 
 pipe = Pipe()
+
+__author__ = 'vilame'

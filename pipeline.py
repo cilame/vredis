@@ -4,6 +4,13 @@ import time
 from .error import NotInDefaultsSetting
 from . import defaults
 
+
+
+
+#==================
+# 信号传递+环境配置
+#==================
+
 # 收发函数的统一管理
 # 以下两个函数均服务于对 worker 端口信息回传的处理
 # 原本都是类内函数，但是为了统一管理和维护放在这里方便管道对应处理
@@ -33,14 +40,15 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None):
         while cls.rds.llen(_cname):
             time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
-            # 这里后续需要考虑更加稳妥的 TaskEnv 的taskid移除问题。 
+            # 这里暂时只考虑了命令行保持链接时挂钩的移除动作
+            # 后续还需要考虑怎么提交式的任务，提交后就不管的那种
             cls.tasklist.remove(taskid)
-        except: 
+        except:
             pass
         _rname = '{}:{}'.format(defaults.VREDIS_SENDER_STOP, taskid)
         # print('stop')
     rdata = {
-        'workerid': cls.workerid, 
+        'workerid': workerid, 
         'taskid': taskid, 
         'piptype': piptype,
         'msg':msg
@@ -68,9 +76,16 @@ def from_pipeline(cls, taskid, piptype=None):
     return rdata
 
 
+
+#==========
+# 实时输出
+#==========
+
 # 实时管道实现
-# 现在发现这种实时管道确实要前面的哪个管道好用很多，上面的管道也兼顾的信号发送的任务
-# 所以也不好废弃，而是兼顾在不同的功能上，先就目前这样好了。上面的管道类更偏向于一种信号的发送。
+# 现在发现这种实时管道确实要比前面的那个管道好用很多，上面的管道也兼顾的信号发送的任务
+# 所以也不好废弃，而是兼顾在不同的功能上，先就目前这样好了。
+# 或者换个想法，分成两个函数的原因：从功能上区别开来。（一个用于信号传递，一个用于实时传输）
+# 并且上面有一个 tasklist 的实例内部参数需要通过 cls 传递。（用于判断是否在环境配置时就出现了错误）
 def send_to_pipeline_real_time(taskid,workerid,order,rds,msg):
     _rname = '{}:{}'.format(defaults.VREDIS_SENDER_RUN, taskid)
     rdata = {
@@ -87,7 +102,9 @@ def send_to_pipeline_real_time(taskid,workerid,order,rds,msg):
 
 
 
-
+#==========
+# 任务指令
+#==========
 
 # 单片的任务指令的传递，这种只能用管道来实现才不会起执行的冲突
 def from_pipeline_execute(cls, taskid):
@@ -112,4 +129,3 @@ def send_to_pipeline_execute(cls, taskid, function_name, args, kwargs):
         'kwargs': kwargs,
     }
     cls.rds.lpush(_rname, json.dumps(sdata))
-

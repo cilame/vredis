@@ -6,13 +6,15 @@ import time
 import queue
 import traceback
 import logging
+import random
 
 from . import defaults
 from . import common
 from .utils import (
     hook_console, 
     _stdout, 
-    _stderr, 
+    _stderr,
+    check_connect, 
     Valve, 
     TaskEnv,
 )
@@ -25,7 +27,6 @@ from .order import (
     run_command,
     attach_command,
     script_command,
-    test_command,
 )
 
 class Worker(common.Initer):
@@ -65,11 +66,6 @@ class Worker(common.Initer):
 
         return cls(rds=rds,**d)
 
-    # 检查链接状态
-    def check_connect(self, taskid):
-        rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, taskid)
-        return bool(self.rds.pubsub_numsub(rname)[0][1])
-
     # 拆分函数
     @staticmethod
     def disassemble_func(func,start=None,err=None,stop=None):
@@ -92,7 +88,7 @@ class Worker(common.Initer):
 
     def process_order(self):
         print('open worker id:',self.workerid)
-        for i in self.pub.listen():
+        for i in self.pub.listen(): # 这里的设计无法抵御网络中断
             # 过滤订阅信息
             if i['type'] == 'subscribe': continue
             order       = json.loads(i['data'])
@@ -101,13 +97,12 @@ class Worker(common.Initer):
             order       = order['order']
             pull_looper = self.connect_work_queue(self.pull_task,   taskid,workerid,order)
             sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order)
-            global list_command,run_command,attach_command,test_command
+            #global list_command,run_command,attach_command
 
             if   order['command'] == 'list':  pull_looper(list_command)  (self,taskid,workerid,order)
             elif order['command'] == 'run':   pull_looper(run_command)   (self,taskid,workerid,order)
             elif order['command'] == 'attach':pull_looper(attach_command)(self,taskid,workerid,order)
             elif order['command'] == 'script':pull_looper(script_command)(self,taskid,workerid,order)
-            elif order['command'] == 'test':  pull_looper(test_command)  (self,taskid,workerid,order)
 
     def _thread(self,_queue):
         while True:
@@ -144,17 +139,16 @@ class Worker(common.Initer):
                         stop_callback(*a,**kw)
                     _stdout._clear_cache(taskid)
                     _stderr._clear_cache(taskid)
-                    # valve.delete(taskid) 该处不应该直接删除，因为该线程属于配置线程
-                    # taskenv.delete(taskid)
             task(func,args,kwargs,start,err,stop)
 
 
     def _thread_run(self):
         # 这里需要考虑怎么实现环境的搭建和处理了。
         while True:
-            #with common.Initer.lock: print(TaskEnv.__taskenv__)
             if TaskEnv.__taskenv__:
-                ret = from_pipeline_execute(self, list(TaskEnv.__taskenv__))
+                ls = list(TaskEnv.__taskenv__)
+                ls = random.sample(ls, len(ls)) # 随机化序列而不是随机选一个，因为 redis 从管道取时可以传入复数的管道名字
+                ret = from_pipeline_execute(self, ls)
                 if ret:
                     taskid      = ret['taskid']
                     func_name   = ret['function'] # 抽取传递过来的函数名字
@@ -164,23 +158,23 @@ class Worker(common.Initer):
                     func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
                     taskenv     = TaskEnv.get_env_locals(taskid)
 
-                    # 魔法参数，以及魔法的 task_locals，用于挂钩标准输出流
+                    # 魔法参数，以及为了兼顾魔法的发生而需要的 get_task_locals 函数
+                    # 看着没用实际有用（用于挂钩标准输出流）
                     __very_unique_function_name__ = None
                     taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
-                    if self.check_connect(taskid):
+
+                    if check_connect(rds, taskid):
                         try:
                             exec(func_str,None,taskenv)
                         except:
-                            print(traceback.format_exc())
+                            # 这里的设计无法抵御网络中断
+                            send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
                     else:
-                        # 这是为了考虑 redis 的存储量所做的队列清空处理
-                        continue
+                        continue # 这是为了考虑 redis 的存储量所做的队列清空处理
                 else:
                     time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
             else:
                 time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
-            
-
 
 
     # 用于将广播的任务信号拖拽下来进行环境配置的线程群

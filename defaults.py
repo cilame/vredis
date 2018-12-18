@@ -52,7 +52,7 @@ VREDIS_WORKER_WAIT_STOP = 1
     # connect 也将包含该功能，作为其 attach 两个下数功能之一的带参数的功能部。
 # 去除dump功能，因为dump功能和线上命令的相关性不大。
 # 增加 script 的指令，这个功能主要是用于将脚本环境的传递
-VREDIS_COMMAND_TYPES = ['list','run','attach','test','script'] 
+VREDIS_COMMAND_TYPES = ['list','run','attach','script'] 
 VREDIS_COMMAND_STRUCT = {'command','subcommand','settings'}
 
 
