@@ -8,7 +8,7 @@ import random
 from . import defaults
 from . import common
 from .pipeline import from_pipeline, send_to_pipeline_execute
-from .utils import checked_order
+from .utils import checked_order, check_connect_worker
 
 class Sender(common.Initer):
     def __init__(self,
@@ -60,30 +60,21 @@ class Sender(common.Initer):
 
 
     def process_stop(self):
-        workernum = len(self.start_worker)
-        idx = 0
-        over_break = defaults.VREDIS_OVER_BREAK
-        while True and not self.taskstop and workernum:
+        workerids = [i['workerid']for i in self.start_worker.copy()]
+        while True and not self.taskstop:
             stopinfo = from_pipeline(self, self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
-                idx += 1
-                over_break = defaults.VREDIS_OVER_BREAK
-                # print('worker stop:',stopinfo)
-            elif idx == workernum:
+                workerids.remove(stopinfo['workerid'])
+            elif not workerids:
                 self.taskstop = True
-                break
             else:
-                if over_break == 1: # 防止 dead worker 影响停止
-                    aliveworkernum = self.rds.pubsub_numsub(defaults.VREDIS_PUBLISH_WORKER)[0][1]
-                    if idx == aliveworkernum and aliveworkernum < workernum:
-                        print('workernum:',workernum)
-                        print('aliveworkernum:',aliveworkernum)
-                        workernum = aliveworkernum
-                over_break -= 1
+                for workerid in workerids:
+                    if not check_connect_worker(self.rds, workerid):
+                        print('unknown crash error stop workerid:{}'.format(workerid))
+                        workerids.remove(workerid)
 
     # 通过一个队列来接受状态回写
     def send_status(self):
-        
         print('send order:', self.order)
         print('receive worker num:', self.pubnum)
         start_worker = []
@@ -103,11 +94,10 @@ class Sender(common.Initer):
 
     def send(self, input_order):
         
-        def wait_connect_pub(self):
+        def wait_connect_pub_sender(self):
             rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, self.taskid)
             self.pub = self.rds.pubsub()
             self.pub.subscribe(rname)
-            self.rds.publish(rname,'heartbeat')
             while not self.rds.pubsub_numsub(rname)[0][1]:
                 time.sleep(.15)
 
@@ -116,7 +106,7 @@ class Sender(common.Initer):
             self.rds.hincrby(defaults.VREDIS_SENDER,defaults.VREDIS_SENDER_ID)
         self.order  = {'taskid':self.taskid, 'order':checked_order(input_order)}
         if defaults.DEBUG:
-            wait_connect_pub(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
+            wait_connect_pub_sender(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
         self.pubnum = self.rds.publish(defaults.VREDIS_PUBLISH_WORKER, json.dumps(self.order))
         self.send_status()
         return self.taskid

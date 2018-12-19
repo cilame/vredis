@@ -121,8 +121,13 @@ def order_filter():
     return r1 and r2
 
 # 检查链接状态
-def check_connect(rds, taskid):
+def check_connect_sender(rds, taskid):
     rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, taskid)
+    return bool(rds.pubsub_numsub(rname)[0][1])
+
+# 检查链接状态
+def check_connect_worker(rds, workerid):
+    rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_WORKER, workerid)
     return bool(rds.pubsub_numsub(rname)[0][1])
 
 

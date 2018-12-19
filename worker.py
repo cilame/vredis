@@ -14,7 +14,7 @@ from .utils import (
     hook_console, 
     _stdout, 
     _stderr,
-    check_connect, 
+    check_connect_sender, 
     Valve, 
     TaskEnv,
 )
@@ -35,21 +35,29 @@ class Worker(common.Initer):
             rds             = redis.StrictRedis(),
             workerid        = None
         ):
-        self.rds            = rds
 
+        def wait_connect_pub_worker(self):
+            rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_WORKER, self.workerid)
+            self._pub = self.rds.pubsub()
+            self._pub.subscribe(rname)
+            while not self.rds.pubsub_numsub(rname)[0][1]:
+                time.sleep(.15)
+
+        self.rds            = rds
         self.rds.ping()
-        hook_console()
 
         self.lock           = RLock()
         self.pub            = self.rds.pubsub()
         self.pub.subscribe(defaults.VREDIS_PUBLISH_WORKER)
 
         self.pull_task      = queue.Queue()
-        self.setting_task   = queue.Queue()
+        self.setting_task   = queue.Queue() # 暂未用到
         self.workerid       = self.rds.hincrby(defaults.VREDIS_WORKER, defaults.VREDIS_WORKER_ID)\
                                 if workerid is None else workerid
 
         self.tasklist       = set()
+        hook_console()
+        wait_connect_pub_worker(self) # 开启任务前需要等待自连接广播打开,用于任意形式工作端断开能被发送任务端检测到
 
     @classmethod
     def from_settings(cls, **kw):
@@ -96,8 +104,7 @@ class Worker(common.Initer):
             taskid      = order['taskid']
             order       = order['order']
             pull_looper = self.connect_work_queue(self.pull_task,   taskid,workerid,order)
-            sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order)
-            #global list_command,run_command,attach_command
+            sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order) # 暂未用到
 
             if   order['command'] == 'list':  pull_looper(list_command)  (self,taskid,workerid,order)
             elif order['command'] == 'run':   pull_looper(run_command)   (self,taskid,workerid,order)
@@ -163,7 +170,7 @@ class Worker(common.Initer):
                     __very_unique_function_name__ = None
                     taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
 
-                    if check_connect(rds, taskid):
+                    if check_connect_sender(rds, taskid):
                         try:
                             exec(func_str,None,taskenv)
                         except:
