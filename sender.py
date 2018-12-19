@@ -51,7 +51,7 @@ class Sender(common.Initer):
             print(re.sub('"VREDIS_SCRIPT": "[^\n]+"', '"VREDIS_SCRIPT": "..."',json.dumps(self.order, indent=4)))
             assert self.order['order']['settings'] is not None
             if 'VREDIS_SCRIPT' in self.order['order']['settings']:
-                print('[SCRIPT]:')
+                print('[SCRIPT_ENV]:')
                 print('\n{}'.format(self.order['order']['settings']['VREDIS_SCRIPT']))
             limit = self.order['order']['settings']['VREDIS_LIMIT_LOG_WORKER_NUM'] if 'VREDIS_LIMIT_LOG_WORKER_NUM' \
                         in self.order['order']['settings'] else defaults.VREDIS_LIMIT_LOG_WORKER_NUM
