@@ -41,7 +41,7 @@ class Sender(common.Initer):
                 print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
             if self.taskstop and runinfo is None:
                 break
-        print('all task stop.')
+        print('task stop.') # 任务结束后要打印任务执行的状态，任务执行状态的结构也需要好好考虑一下。
 
 
     def process_stop(self):
@@ -49,14 +49,24 @@ class Sender(common.Initer):
         def log_start():
             print('[ORDER]:')
             print(re.sub('"VREDIS_SCRIPT": "[^\n]+"', '"VREDIS_SCRIPT": "..."',json.dumps(self.order, indent=4)))
-            if self.order['order']['settings'] is not None and 'VREDIS_SCRIPT' in self.order['order']['settings']:
+            assert self.order['order']['settings'] is not None
+            if 'VREDIS_SCRIPT' in self.order['order']['settings']:
                 print('[SCRIPT]:')
                 print('\n{}'.format(self.order['order']['settings']['VREDIS_SCRIPT']))
-            print('taskid:{}, receive worker num:{}'.format(self.taskid, self.pubnum))
+            limit = self.order['order']['settings']['VREDIS_LIMIT_LOG_WORKER_NUM'] if 'VREDIS_LIMIT_LOG_WORKER_NUM' \
+                        in self.order['order']['settings'] else defaults.VREDIS_LIMIT_LOG_WORKER_NUM
+            print('[TASK]:')
+            t = ['taskid:{}'.format(self.taskid),'receive worker num:{}'.format(self.pubnum)]
+            if limit < self.pubnum:
+                t.append('  <over VREDIS_LIMIT_LOG_WORKER_NUM:{} limited quantities.>'.format(limit))
+                t.append('  <use from_settings funciton set the parameter VREDIS_LIMIT_LOG_WORKER_NUM to see more.>')
             T = True
             for idx,info in enumerate(self.start_worker):
-                if T and idx >= 10: T = False; print('...') # 超过10的任务名不显示。
-                if T: print('start workerid:{}'.format(info['workerid']))
+                if T and idx >= limit:
+                    T = False
+                    t.append('start workerid: ...') # 超过指定数量的的任务名不显示。
+                if T: t.append('start workerid:{}'.format(info['workerid']))
+            print(json.dumps(t, indent=4))
 
         log_start()
         workerids = [i['workerid']for i in self.start_worker.copy()]

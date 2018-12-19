@@ -56,6 +56,8 @@ VREDIS_COMMAND_STRUCT = {'command','subcommand','settings'}
 # 并且要注意的是，尽量在后续开发时候，不要让配置内容的接口变成分开传递，会有问题。
 VREDIS_SCRIPT = None
 
+VREDIS_LIMIT_LOG_WORKER_NUM = 10
+
 # 开启 DEBUG 状态会让调试时 worker 监控 VREDIS_PUBLISH_SENDER 的链接状态
 # 目前如果为 True，将覆盖 VREDIS_KEEP_LOG_CONSOLE 为 True。暂无更多影响。
 DEBUG = True

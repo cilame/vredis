@@ -11,6 +11,7 @@ sys.path.append(p)
 from vredis import pipe
 
 pipe.connect(host='47.99.126.229',port=6379,password='vilame')
+#pipe.from_settings(VREDIS_LIMIT_LOG_WORKER_NUM=2)
 pipe.DEBUG = True # worker端是否进行控制台打印。
 
 @pipe
