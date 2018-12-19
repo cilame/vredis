@@ -71,7 +71,6 @@ class Worker(common.Initer):
                 d[i] = kw[i]
             if hasattr(defaults,i):
                 setattr(defaults,i,kw[i])
-
         return cls(rds=rds,**d)
 
     # 拆分函数

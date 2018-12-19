@@ -23,23 +23,13 @@ class Sender(common.Initer):
 
     @classmethod
     def from_settings(cls,**kw):
-
         rds = cls.redis_from_settings(**kw)
-
-        # 类内配置，后续需要增加动态修改的内容，实现动态配置某类参数
-        # 暂时觉得这里的配置之后都不太可能会被用到
-        d = dict()
-
-        # 默认配置，修改时注意不重名就行，内部元素都是大写字母与下划线
+        # 默认配置也可以在这里配置
         global defaults
-        for i in kw:
-            if i in d:
-                d[i] = kw[i]    
+        for i in kw: 
             if hasattr(defaults,i):
                 setattr(defaults,i,kw[i])
-
-        return cls(rds=rds,**d)
-
+        return cls(rds=rds)
 
 
     def task_is_empty(self):
