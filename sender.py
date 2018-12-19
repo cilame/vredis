@@ -1,5 +1,6 @@
 import redis
 
+import re
 import time
 import json
 import logging
@@ -32,24 +33,32 @@ class Sender(common.Initer):
         return cls(rds=rds)
 
 
-    def task_is_empty(self):
-        _rname = '{}:{}'.format(defaults.VREDIS_TASK, self.taskid)
-        ret = self.rds.llen(_rname)
-        return ret == 0
-
-
     def process_run(self):
         workernum = len(self.start_worker)
         while True and workernum:
             runinfo = from_pipeline(self, self.taskid, 'run')
             if runinfo and runinfo['piptype'] == 'realtime':
                 print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
-            if self.taskstop and runinfo is None and self.task_is_empty():
+            if self.taskstop and runinfo is None:
                 break
         print('all task stop.')
 
 
     def process_stop(self):
+
+        def log_start():
+            print('[ORDER]:')
+            print(re.sub('"VREDIS_SCRIPT": "[^\n]+"', '"VREDIS_SCRIPT": "..."',json.dumps(self.order, indent=4)))
+            if self.order['order']['settings'] is not None and 'VREDIS_SCRIPT' in self.order['order']['settings']:
+                print('[SCRIPT]:')
+                print('\n{}'.format(self.order['order']['settings']['VREDIS_SCRIPT']))
+            print('taskid:{}, receive worker num:{}'.format(self.taskid, self.pubnum))
+            T = True
+            for idx,info in enumerate(self.start_worker):
+                if T and idx >= 10: T = False; print('...') # 超过10的任务名不显示。
+                if T: print('start workerid:{}'.format(info['workerid']))
+
+        log_start()
         workerids = [i['workerid']for i in self.start_worker.copy()]
         while True and not self.taskstop:
             stopinfo = from_pipeline(self, self.taskid, 'stop')
@@ -65,8 +74,6 @@ class Sender(common.Initer):
 
     # 通过一个队列来接受状态回写
     def send_status(self):
-        print('send order:', self.order)
-        print('receive worker num:', self.pubnum)
         start_worker = []
         for _ in range(self.pubnum):
             worker = from_pipeline(self, self.taskid, 'start')
@@ -77,9 +84,10 @@ class Sender(common.Initer):
                     # 在 start 阶段如果 msg 内有数据的话，那么就是开启时出现了错误。进行开始阶段的错误回写即可。
                     print(worker['msg'])
         self.start_worker = start_worker
-
-        if defaults.DEBUG and self.start_worker:
+        if self.start_worker:
             self.start() # 开启debug状态将额外开启两个线程作为输出日志的同步
+        else:
+            print('none worker receive task.')
 
 
     def send(self, input_order):

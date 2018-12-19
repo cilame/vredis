@@ -14,14 +14,14 @@ class Pipe:
 
     def from_settings(self,**settings):
         if not self.unstart: 
-            raise SenderAlreadyStarted('Sender must be set before the task is sent')
+            raise SenderAlreadyStarted('Sender must be set before the task is sent.')
         self.settings.update(settings)
         self.sender = Sender.from_settings(**self.settings)
         return self
 
     def connect(self, host='localhost', port=6379, password=None, db=0):
         if not self.unstart: 
-            raise SenderAlreadyStarted('Sender must be set before the task is sent')
+            raise SenderAlreadyStarted('Sender must be set before the task is sent.')
         d = dict(
             host=host,
             port=port,
@@ -51,3 +51,4 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'vilame'
+__email__ = 'opaquism@hotmail.com'
