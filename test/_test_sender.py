@@ -20,13 +20,27 @@ def some(i):
     rd = random.randint(1,2)
     time.sleep(rd)
     print('use func:{}, rd time:{}'.format(i,rd))
+    return 123
 
 @pipe
 def some2(i):
     print('use func2:{}'.format(i))
 
-for i in range(300):
+for i in range(100):
     some(i)
     some2(i)
 
 
+# @pipe
+# def req_baidu(key='123',num=0):
+#     import requests
+#     from lxml import etree
+#     url = 'http://www.baidu.com/s?wd={}&pn={}0'.format(key,num)
+#     s = requests.get(url)
+#     e = etree.HTML(s.content)
+#     print(num)
+#     for href in e.xpath('//div[contains(@class,"c-container")]/h3/a/@href'):
+#         yield {'num':num,'href':href}
+
+# for i in range(500):
+#     req_baidu(num=i)

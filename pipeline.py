@@ -6,7 +6,6 @@ from . import defaults
 
 
 
-
 #==================
 # 信号传递+环境配置
 #==================
@@ -15,7 +14,7 @@ from . import defaults
 # 以下两个函数均服务于对 worker 端口信息回传的处理
 # 原本都是类内函数，但是为了统一管理和维护放在这里方便管道对应处理
 # 这里是发送端口，用于从 worker 发送到管道
-def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None):
+def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=None):
     if piptype is None or piptype.lower() not in ['start','run','stop','error']:
         raise "none init piptype. or piptype not in ['start','run','stop','error']"
     if piptype =='start':
@@ -37,7 +36,7 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None):
     if piptype =='stop':
         # 这里的停止需要考虑在消化队列为空的情况下才执行关闭
         _cname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
-        while cls.rds.llen(_cname):
+        while cls.rds.llen(_cname) or not plus.idle(taskid):
             time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
             # 这里暂时只考虑了命令行保持链接时挂钩的移除动作
@@ -109,7 +108,7 @@ def send_to_pipeline_real_time(taskid,workerid,order,rds,msg):
 # 单片的任务指令的传递，这种只能用管道来实现才不会起执行的冲突
 def from_pipeline_execute(cls, taskid):
     if type(taskid) == list:
-        _rname = ['{}:{}'.format(defaults.VREDIS_TASK,_taskid)for _taskid in sorted(taskid,reverse=True)]
+        _rname = ['{}:{}'.format(defaults.VREDIS_TASK,_taskid)for _taskid in taskid]
     else:
         _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
     try:
@@ -127,5 +126,33 @@ def send_to_pipeline_execute(cls, taskid, function_name, args, kwargs):
         'function': function_name,
         'args': args,
         'kwargs': kwargs,
+    }
+    cls.rds.lpush(_rname, json.dumps(sdata))
+
+
+
+
+
+
+
+#==========
+# 数据收集
+#==========
+# 数据收集的方式
+def from_pipeline_data(cls, taskid, name='default'):
+    _rname = '{}:{}@{}'.format(defaults.VREDIS_DATA, taskid, name)
+    try:
+        _, ret = cls.rds.brpop(_rname, defaults.VREDIS_DATA_TIMEOUT)
+        rdata = json.loads(ret) # ret 必是一个 json 字符串。
+    except:
+        rdata = None
+    return rdata
+
+# 数据传递需要给一个名字来指定数据的管道，因为可能一次任务中需要收集n种数据。
+def send_to_pipeline_data(cls, taskid, data, name='default'):
+    _rname = '{}:{}@{}'.format(defaults.VREDIS_DATA, taskid, name)
+    sdata = {
+        'taskid': taskid,
+        'data': data,
     }
     cls.rds.lpush(_rname, json.dumps(sdata))

@@ -7,6 +7,7 @@ import queue
 import traceback
 import logging
 import random
+import types
 
 from . import defaults
 from . import common
@@ -20,6 +21,7 @@ from .utils import (
 )
 from .pipeline import (
     send_to_pipeline,
+    send_to_pipeline_data,
     from_pipeline_execute,
 )
 from .order import (
@@ -142,7 +144,7 @@ class Worker(common.Initer):
                     self.rds.hdel(defaults.VREDIS_WORKER, taskid)
                     if stop is not None:
                         stop_callback,a,kw,_,_,_ = stop
-                        stop_callback(*a,**kw)
+                        stop_callback(*a,**kw,plus=TaskEnv)
                     _stdout._clear_cache(taskid)
                     _stderr._clear_cache(taskid)
             task(func,args,kwargs,start,err,stop)
@@ -169,13 +171,25 @@ class Worker(common.Initer):
                     __very_unique_function_name__ = None
                     taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
 
+                    TaskEnv.incr(taskid)
                     if check_connect_sender(rds, taskid):
                         try:
-                            exec(func_str,None,taskenv)
+                            # 这里返回的数据如果非 None ，且被包装成字典后是一般的可被 json 序列化的数据
+                            # 那么就会写入 redis 管道里面。
+                            ret = eval(func_str, None, taskenv)
+                            if ret is not None:
+                                if isinstance(ret,types.GeneratorType):
+                                    for i in ret:
+                                        send_to_pipeline_data(self, taskid, i, valve.VREDIS_DATA_DEFAULT_TABLE)
+                                else:
+                                    send_to_pipeline_data(self, taskid, ret, valve.VREDIS_DATA_DEFAULT_TABLE)
                         except:
                             # 这里的设计无法抵御网络中断
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
+                        finally:
+                            TaskEnv.decr(taskid)
                     else:
+                        TaskEnv.decr(taskid)
                         continue # 这是为了考虑 redis 的存储量所做的队列清空处理
                 else:
                     time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)

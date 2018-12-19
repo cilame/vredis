@@ -22,6 +22,11 @@ VREDIS_WORKER_ID = 'id'
 VREDIS_TASK = 'vredis:task'
 VREDIS_TASK_TIMEOUT = 3
 
+# 数据传输的管道名字，和前面的管道一样，都是在运行时加上 taskid 来分割空间
+VREDIS_DATA = 'vredis:data'
+VREDIS_DATA_DEFAULT_TABLE = 'default'
+VREDIS_DATA_TIMEOUT = 3
+
 
 # type: publish
 VREDIS_PUBLISH_WORKER = 'vredis:publish:worker'

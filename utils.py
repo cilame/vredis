@@ -2,6 +2,7 @@ import sys
 import inspect
 #import logging
 
+from . import common
 from . import defaults
 from .pipeline import send_to_pipeline_real_time
 from .error import (
@@ -190,7 +191,7 @@ class TaskEnv:
         self.keyid = taskid if groupid is None else groupid
         if order_filter(): 
             if self.keyid not in TaskEnv.__taskenv__:
-                TaskEnv.__taskenv__[self.keyid] = {'env_local':{},'task_local':None}
+                TaskEnv.__taskenv__[self.keyid] = {'env_local':{},'task_local':None,'lock':0,'start':False}
 
     def mk_env_locals(__very_unique_self__, __very_unique_script__):
         if order_filter():
@@ -216,12 +217,12 @@ for __very_unique_item__ in locals():
 
     @staticmethod
     def get_env_locals(taskid):
-        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},'task_local':None})
+        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},'task_local':None,'lock':0,'start':False})
         return temp['env_local']
 
     @staticmethod
     def get_task_locals(taskid):
-        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},'task_local':None})
+        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},'task_local':None,'lock':0,'start':False})
         return temp['task_local']
 
     @staticmethod
@@ -233,6 +234,26 @@ for __very_unique_item__ in locals():
     def clear():
         TaskEnv.__taskenv__ = {}
 
+    @staticmethod
+    def incr(taskid):
+        if taskid in TaskEnv.__taskenv__:
+            with common.Initer.lock:
+                TaskEnv.__taskenv__[taskid]['lock'] += 1
+                if not TaskEnv.__taskenv__[taskid]['start']:
+                    TaskEnv.__taskenv__[taskid]['start'] = True
+
+    @staticmethod
+    def decr(taskid):
+        if taskid in TaskEnv.__taskenv__:
+            with common.Initer.lock:
+                TaskEnv.__taskenv__[taskid]['lock'] -= 1
+
+    @staticmethod
+    def idle(taskid):
+        if taskid in TaskEnv.__taskenv__:
+            return TaskEnv.__taskenv__[taskid]['lock'] == 0 and \
+                   TaskEnv.__taskenv__[taskid]['start']
+        return False
 
 
 
