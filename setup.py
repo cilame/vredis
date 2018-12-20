@@ -11,7 +11,7 @@ setup(
         'console_scripts': ['vredis = vredis.cmdline:execute']
     },
     long_description="""
-Distributed script crawler framework。
+Distributed script crawler framework.
 =====================================
 
 .. code-block:: python
