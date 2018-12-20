@@ -37,7 +37,9 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
         # 这里的停止需要考虑在消化队列为空的情况下才执行关闭
         _cname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
         valve,TaskEnv = plus
-        while cls.rds.llen(_cname) or not TaskEnv.idle(taskid):
+        # 应该判断的是该任务下的所有 worker 是否都处理 idle状态
+        # 而不是仅仅只判断本地的状态。具体的 idle 处理看 TaskEnv 类具体实现。
+        while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid): 
             time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
             # 这里暂时只考虑了命令行保持链接时挂钩的移除动作

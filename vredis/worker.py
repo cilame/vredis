@@ -170,6 +170,7 @@ class Worker(common.Initer):
                     func_name   = ret['function'] # 抽取传递过来的函数名字
                     args        = ret['args']
                     kwargs      = ret['kwargs']
+                    TaskEnv.incr(taskid)
 
                     func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
                     taskenv     = TaskEnv.get_env_locals(taskid)
@@ -179,7 +180,6 @@ class Worker(common.Initer):
                     __very_unique_function_name__ = None
                     taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
 
-                    TaskEnv.incr(taskid)
                     if check_connect_sender(rds, taskid):
                         try:
                             # 这里返回的数据如果非 None ，且被包装成字典后是一般的可被 json 序列化的数据

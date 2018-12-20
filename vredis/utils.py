@@ -194,7 +194,8 @@ class TaskEnv:
                                                     'task_local':None,
                                                     'lock':0,
                                                     'start':False,
-                                                    'digest_dead':0, }
+                                                    'digest_dead':0,
+                                                    'swap':True,}
 
     def mk_env_locals(__very_unique_self__, __very_unique_script__):
         if order_filter():
@@ -224,7 +225,8 @@ for __very_unique_item__ in locals():
                                                 'task_local':None,
                                                 'lock':0,
                                                 'start':False,
-                                                'digest_dead':0, })
+                                                'digest_dead':0,
+                                                'swap':True,})
         return temp['env_local']
 
     @staticmethod
@@ -233,7 +235,8 @@ for __very_unique_item__ in locals():
                                                 'task_local':None,
                                                 'lock':0,
                                                 'start':False,
-                                                'digest_dead':0, })
+                                                'digest_dead':0,
+                                                'swap':True,})
         return temp['task_local']
 
     @staticmethod
@@ -260,17 +263,31 @@ for __very_unique_item__ in locals():
                 TaskEnv.__taskenv__[taskid]['lock'] -= 1
 
     @staticmethod
-    def idle(taskid):
+    def idle(rds, taskid):
         if taskid in TaskEnv.__taskenv__:
             if TaskEnv.__taskenv__[taskid]['start'] == False:
                 TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
-            if TaskEnv.__taskenv__[taskid]['digest_dead'] > 3:
+            if TaskEnv.__taskenv__[taskid]['digest_dead'] > 10:
                 # 连续超过 10 次idle判断都未启动则代表线程可能处于卡死状态，自动销毁
-                # 不过这种处理属于一种非常情况下的解决办法。为了让更多任务可以同时进行，
-                # 需要考虑的不只是增大信号线程的数量。
+                # 不过这种的处理场景已经是非常极端的情况了，基本不会出现。
+                print('digest_dead:{}.'.format(taskid))
                 return True 
-            return TaskEnv.__taskenv__[taskid]['lock'] == 0 and \
-                   TaskEnv.__taskenv__[taskid]['start']
+
+            keyname = 'idle@{}'.format(taskid)
+            if TaskEnv.__taskenv__[taskid]['lock'] == 0 and \
+               TaskEnv.__taskenv__[taskid]['start']:
+                # 这里想了下面的方法来检查该 taskid 下的所有 worker 的状态来检查是否所有爬虫都在空任务队列和空闲状态。
+                # 不能仅仅考虑本地是否处于空闲状态就足以判断是否该结束程序。可能逻辑上没更细细去想，这里的处理也不如线程锁那样干劲利落。
+                # 目前来看是解决了问题的。以后再有问题再考虑了。主要是深夜码代码有点头疼。
+                if TaskEnv.__taskenv__[taskid]['swap'] == False:
+                    rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=-1)
+                    TaskEnv.__taskenv__[taskid]['swap'] = True
+                return int(rds.hget(defaults.VREDIS_WORKER,keyname)) == 0
+            else:
+                if TaskEnv.__taskenv__[taskid]['swap'] == True:
+                    rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=1)
+                    TaskEnv.__taskenv__[taskid]['swap'] = False
+
         return False
 
 
