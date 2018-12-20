@@ -2,7 +2,6 @@
 import os
 import sys
 p = os.path.split(os.getcwd())[0]
-p = os.path.split(p)[0]
 sys.path.append(p)
 
 
