@@ -4,7 +4,7 @@ import sys
 setup(  
     name="vredis",
     version="0.0.0",
-    author="vilame",
+    author="cilame",
     author_email="opaquism@hotmail.com",
     description="Distributed script crawler framework.",
     entry_points={

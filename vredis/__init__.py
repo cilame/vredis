@@ -52,6 +52,6 @@ class Pipe:
 
 pipe = Pipe()
 
-__author__ = 'vilame'
+__author__ = 'cilame'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'
