@@ -190,7 +190,11 @@ class TaskEnv:
         self.keyid = taskid if groupid is None else groupid
         if order_filter(): 
             if self.keyid not in TaskEnv.__taskenv__:
-                TaskEnv.__taskenv__[self.keyid] = {'env_local':{},'task_local':None,'lock':0,'start':False}
+                TaskEnv.__taskenv__[self.keyid] = { 'env_local':{},
+                                                    'task_local':None,
+                                                    'lock':0,
+                                                    'start':False,
+                                                    'digest_dead':0, }
 
     def mk_env_locals(__very_unique_self__, __very_unique_script__):
         if order_filter():
@@ -216,12 +220,20 @@ for __very_unique_item__ in locals():
 
     @staticmethod
     def get_env_locals(taskid):
-        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},'task_local':None,'lock':0,'start':False})
+        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},
+                                                'task_local':None,
+                                                'lock':0,
+                                                'start':False,
+                                                'digest_dead':0, })
         return temp['env_local']
 
     @staticmethod
     def get_task_locals(taskid):
-        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},'task_local':None,'lock':0,'start':False})
+        temp = TaskEnv.__taskenv__.get(taskid, {'env_local':{},
+                                                'task_local':None,
+                                                'lock':0,
+                                                'start':False,
+                                                'digest_dead':0, })
         return temp['task_local']
 
     @staticmethod
@@ -250,6 +262,13 @@ for __very_unique_item__ in locals():
     @staticmethod
     def idle(taskid):
         if taskid in TaskEnv.__taskenv__:
+            if TaskEnv.__taskenv__[taskid]['start'] == False:
+                TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
+            if TaskEnv.__taskenv__[taskid]['digest_dead'] > 3:
+                # 连续超过 10 次idle判断都未启动则代表线程可能处于卡死状态，自动销毁
+                # 不过这种处理属于一种非常情况下的解决办法。为了让更多任务可以同时进行，
+                # 需要考虑的不只是增大信号线程的数量。
+                return True 
             return TaskEnv.__taskenv__[taskid]['lock'] == 0 and \
                    TaskEnv.__taskenv__[taskid]['start']
         return False

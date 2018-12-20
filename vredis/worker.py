@@ -59,7 +59,9 @@ class Worker(common.Initer):
 
         self.tasklist       = set()
         hook_console()
-        wait_connect_pub_worker(self) # 开启任务前需要等待自连接广播打开,用于任意形式工作端断开能被发送任务端检测到
+        wait_connect_pub_worker(self) # 开启任务前需要等待自连接广播打开，用于任意形式工作端断开能被发送任务端检测到
+
+        self._thread_num    = 0 # 用以计算当前使用的 pull_task 线程数量，在挂钩停止任务时判断是否 “不使用线程池”
 
     @classmethod
     def from_settings(cls, **kw):
@@ -115,6 +117,7 @@ class Worker(common.Initer):
     def _thread(self,_queue):
         while True:
             func,args,kwargs,start,err,stop = _queue.get()
+            with common.Initer.lock: self._thread_num += 1
             def task(func,args,kwargs,start,err,stop):
                 # 为了使 stack 寻找时候定位当前的环境从而找到 taskid 来分割不同任务的日志环境
                 # 需要确保这里的 locals() 空间内拥有该参数名并且其余的环境没有该参数名字
@@ -144,11 +147,16 @@ class Worker(common.Initer):
                     self.rds.hdel(defaults.VREDIS_WORKER, taskid)
                     if stop is not None:
                         stop_callback,a,kw,_,_,_ = stop
-                        stop_callback(*a,**kw,plus=(valve,TaskEnv))
+                        if self._thread_num < defaults.VREDIS_WORKER_THREAD_PULL_NUM:
+                            stop_callback(*a,**kw,plus=(valve,TaskEnv))
+                        else:
+                            print('Warning! More than {} tasks are currently being performed, workerid:{}.' \
+                                            .format(self._thread_num-1,workerid))
+                            Thread(target=stop_callback,args=a,kwargs={**kw,'plus':(valve,TaskEnv)}).start()
                     _stdout._clear_cache(taskid)
                     _stderr._clear_cache(taskid)
             task(func,args,kwargs,start,err,stop)
-
+            with common.Initer.lock: self._thread_num -= 1
 
     def _thread_run(self):
         # 这里需要考虑怎么实现环境的搭建和处理了。
