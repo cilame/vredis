@@ -36,11 +36,14 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
     if piptype =='stop':
         # 这里的停止需要考虑在消化队列为空的情况下才执行关闭
         _cname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
-        while cls.rds.llen(_cname) or not plus.idle(taskid):
+        valve,TaskEnv = plus
+        while cls.rds.llen(_cname) or not TaskEnv.idle(taskid):
             time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
             # 这里暂时只考虑了命令行保持链接时挂钩的移除动作
             # 后续还需要考虑怎么提交式的任务，提交后就不管的那种
+            valve.delete(taskid)
+            TaskEnv.delete(taskid)
             cls.tasklist.remove(taskid)
         except:
             pass
@@ -140,7 +143,7 @@ def send_to_pipeline_execute(cls, taskid, function_name, args, kwargs):
 #==========
 # 数据收集的方式
 def from_pipeline_data(cls, taskid, name='default'):
-    _rname = '{}:{}@{}'.format(defaults.VREDIS_DATA, taskid, name)
+    _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, name)
     try:
         _, ret = cls.rds.brpop(_rname, defaults.VREDIS_DATA_TIMEOUT)
         rdata = json.loads(ret) # ret 必是一个 json 字符串。
@@ -150,7 +153,7 @@ def from_pipeline_data(cls, taskid, name='default'):
 
 # 数据传递需要给一个名字来指定数据的管道，因为可能一次任务中需要收集n种数据。
 def send_to_pipeline_data(cls, taskid, data, name='default'):
-    _rname = '{}:{}@{}'.format(defaults.VREDIS_DATA, taskid, name)
+    _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, name)
     sdata = {
         'taskid': taskid,
         'data': data,

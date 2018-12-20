@@ -10,9 +10,11 @@ class Pipe:
         self.script  = ''
         self.unstart = True
         self.settings = {}
-        self.DEBUG   = True
+        self.DEBUG   = False
 
     def from_settings(self,**settings):
+        # 这里的配置可以有 redis 库里面 redis 类实例化所需要的各个参数
+        # 这里的配置也可以添加需要配置的 defaults 里面的各个参数，不过里面的一些参数可以动态修改，一些不能。
         if not self.unstart: 
             raise SenderAlreadyStarted('Sender must be set before the task is sent.')
         self.settings.update(settings)
@@ -52,3 +54,4 @@ pipe = Pipe()
 
 __author__ = 'vilame'
 __email__ = 'opaquism@hotmail.com'
+__github__ = 'https://github.com/cilame/vredis'

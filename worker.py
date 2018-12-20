@@ -144,7 +144,7 @@ class Worker(common.Initer):
                     self.rds.hdel(defaults.VREDIS_WORKER, taskid)
                     if stop is not None:
                         stop_callback,a,kw,_,_,_ = stop
-                        stop_callback(*a,**kw,plus=TaskEnv)
+                        stop_callback(*a,**kw,plus=(valve,TaskEnv))
                     _stdout._clear_cache(taskid)
                     _stderr._clear_cache(taskid)
             task(func,args,kwargs,start,err,stop)

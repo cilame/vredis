@@ -61,6 +61,8 @@ VREDIS_COMMAND_STRUCT = {'command','subcommand','settings'}
 # 并且要注意的是，尽量在后续开发时候，不要让配置内容的接口变成分开传递，会有问题。
 VREDIS_SCRIPT = None
 
+# 队列过多时，脚本发送的日志默认只显示前10条 workerid，如需显示更多的 workerid 需要修改这里。
+# 不过要检查 worker 的状态不应该在任务执行提交时检查，最好用 list 去检查会获取更多信息
 VREDIS_LIMIT_LOG_WORKER_NUM = 10
 
 # 开启 DEBUG 状态会让调试时 worker 监控 VREDIS_PUBLISH_SENDER 的链接状态
