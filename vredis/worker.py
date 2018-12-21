@@ -31,6 +31,8 @@ from .order import (
     script_command,
 )
 
+from .error import NotInDefaultType
+
 class Worker(common.Initer):
 
     def __init__(self, 
@@ -186,11 +188,20 @@ class Worker(common.Initer):
                             # 那么就会写入 redis 管道里面。
                             ret = eval(func_str, None, taskenv)
                             if ret is not None:
-                                if isinstance(ret,types.GeneratorType):
+                                # 最外层返回的数据只要是可迭代的，那就迭代。
+                                if isinstance(ret,(types.GeneratorType,list,tuple)):
                                     for i in ret:
-                                        send_to_pipeline_data(self, taskid, i, valve.VREDIS_DATA_DEFAULT_TABLE)
+                                        # 深层的内容可以不用考虑是否是 list 或 tuple 的向下迭代。只管传进去即可。
+                                        if isinstance(i,(list,tuple,dict,int,str,float)):
+                                            send_to_pipeline_data(self, taskid, i, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
+                                        else:
+                                            raise NotInDefaultType('{} not in defaults type:{}.'.format(
+                                                            type(ret),'(GeneratorType,list,tuple,dict,int,str,float)'))        
+                                elif isinstance(ret, (dict,int,str,float)):
+                                    send_to_pipeline_data(self, taskid, ret, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
                                 else:
-                                    send_to_pipeline_data(self, taskid, ret, valve.VREDIS_DATA_DEFAULT_TABLE)
+                                    raise NotInDefaultType('{} not in defaults type:{}.'.format(
+                                                    type(ret),'(GeneratorType,list,tuple,dict,int,str,float)'))
                         except:
                             # 这里的设计无法抵御网络中断
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())

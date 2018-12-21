@@ -39,7 +39,7 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
         valve,TaskEnv = plus
         # 应该判断的是该任务下的所有 worker 是否都处理 idle状态
         # 而不是仅仅只判断本地的状态。具体的 idle 处理看 TaskEnv 类具体实现。
-        while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid): 
+        while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid, workerid): 
             time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
             # 这里暂时只考虑了命令行保持链接时挂钩的移除动作
@@ -154,10 +154,12 @@ def from_pipeline_data(cls, taskid, name='default'):
     return rdata
 
 # 数据传递需要给一个名字来指定数据的管道，因为可能一次任务中需要收集n种数据。
-def send_to_pipeline_data(cls, taskid, data, name='default'):
+def send_to_pipeline_data(cls, taskid, data, name='default', valve=None):
     _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, name)
     sdata = {
         'taskid': taskid,
         'data': data,
     }
+    if valve is not None and valve.VREDIS_KEEP_LOG_ITEM:
+        print(sdata)
     cls.rds.lpush(_rname, json.dumps(sdata))

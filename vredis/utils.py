@@ -263,17 +263,20 @@ for __very_unique_item__ in locals():
                 TaskEnv.__taskenv__[taskid]['lock'] -= 1
 
     @staticmethod
-    def idle(rds, taskid):
+    def idle(rds, taskid, workerid):
         if taskid in TaskEnv.__taskenv__:
+            keyname = 'idle@{}'.format(taskid)
+
             if TaskEnv.__taskenv__[taskid]['start'] == False:
                 TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
-            if TaskEnv.__taskenv__[taskid]['digest_dead'] > 10:
-                # 连续超过 10 次idle判断都未启动则代表线程可能处于卡死状态，自动销毁
-                # 不过这种的处理场景已经是非常极端的情况了，基本不会出现。
-                print('digest_dead:{}.'.format(taskid))
-                return True 
+                if TaskEnv.__taskenv__[taskid]['digest_dead'] > 3:
+                    # 连续超过 3 次idle判断都未启动则代表线程可能处于卡死状态，自动销毁
+                    # 不过这种的处理场景不多(例如一个任务n个线程跑)
+                    print('disconnect task:{}, worker:{}.'.format(taskid,workerid))
+                    if TaskEnv.__taskenv__[taskid]['swap'] == False:
+                        rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=-1)
+                    return True 
 
-            keyname = 'idle@{}'.format(taskid)
             if TaskEnv.__taskenv__[taskid]['lock'] == 0 and \
                TaskEnv.__taskenv__[taskid]['start']:
                 # 这里想了下面的方法来检查该 taskid 下的所有 worker 的状态来检查是否所有爬虫都在空任务队列和空闲状态。
@@ -282,7 +285,7 @@ for __very_unique_item__ in locals():
                 if TaskEnv.__taskenv__[taskid]['swap'] == False:
                     rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=-1)
                     TaskEnv.__taskenv__[taskid]['swap'] = True
-                return int(rds.hget(defaults.VREDIS_WORKER,keyname)) == 0
+                return int(rds.hget(defaults.VREDIS_WORKER,keyname) or 0) == 0
             else:
                 if TaskEnv.__taskenv__[taskid]['swap'] == True:
                     rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=1)

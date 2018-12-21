@@ -11,6 +11,7 @@ class Pipe:
         self.unstart = True
         self.settings = {}
         self.DEBUG   = False
+        self.LOG_ITEM = True
 
     def from_settings(self,**settings):
         # 这里的配置可以有 redis 库里面 redis 类实例化所需要的各个参数
@@ -41,7 +42,9 @@ class Pipe:
         def _wrapper(*args, **kwargs):
             if self.unstart:
                 self.sender     = self.sender if self.sender is not None else Sender()
-                self.tid        = self.sender.send({'command':'script','settings':{'VREDIS_SCRIPT':self.script,'DEBUG':self.DEBUG}})
+                self.tid        = self.sender.send({'command':'script','settings':{'VREDIS_SCRIPT':self.script,
+                                                                                   'DEBUG':self.DEBUG,
+                                                                                   'VREDIS_KEEP_LOG_ITEM':self.LOG_ITEM}})
                 self.unstart    = False
             self.sender.send_execute(self.tid, func.__name__, args, kwargs)
         return _wrapper

@@ -11,7 +11,8 @@ from vredis import pipe
 
 pipe.connect(host='47.99.126.229',port=6379,password='vilame')
 #pipe.from_settings(VREDIS_LIMIT_LOG_WORKER_NUM=2) # 队列过多时默认只显示前10条workerid，如需显示完整需要修改这里。
-pipe.DEBUG = True # worker端是否进行控制台打印。
+pipe.DEBUG = True # worker端是否进行控制台打印。(默认False)
+pipe.LOG_ITEM = True # 是否进行item数据打印显示。(默认False)
 
 @pipe
 def some(i):

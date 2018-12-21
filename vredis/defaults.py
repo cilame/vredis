@@ -76,6 +76,7 @@ DEBUG = True
 # 当指定 taskid 和 workerid 进行过滤输出时，“随机选择一个”的配置就会失效
 # 如果这里不设置的话，就默认是全部
 VREDIS_KEEP_LOG_CONSOLE = False # 是否保持 worker 端的命令行执行。
+VREDIS_KEEP_LOG_ITEM = False # 是否需要打印收集到的数据
 VREDIS_FILTER_LOG_RANDOM_ONE = False # 现在默认关闭，因为感觉这个功能很鸡肋，可有可无
 VREDIS_FILTER_LOG_TASKID = None
 VREDIS_FILTER_LOG_WORKERID = None

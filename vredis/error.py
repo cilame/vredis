@@ -4,6 +4,9 @@ class NotInDefaultsSetting(Exception):
 class NotInDefaultCommand(Exception):
 	pass
 
+class NotInDefaultType(Exception):
+    pass
+
 class MustDictType(Exception):
 	pass
 
