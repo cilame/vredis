@@ -9,4 +9,4 @@ sys.path.append(p)
 
 
 from vredis import cmdline
-cmdline.execute(sys.argv)
+cmdline.execute(['vredis','--help'])

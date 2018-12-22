@@ -70,6 +70,7 @@ class Sender(common.Initer):
 
         log_start()
         workerids = [i['workerid']for i in self.start_worker.copy()]
+        workeridd = {i['workerid']:i['plus'] for i in self.start_worker.copy()}
         while True and not self.taskstop:
             stopinfo = from_pipeline(self, self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
@@ -78,9 +79,10 @@ class Sender(common.Initer):
                 self.taskstop = True
             else:
                 for workerid in workerids:
-                    if not check_connect_worker(self.rds, workerid):
+                    if not check_connect_worker(self.rds, workerid, workeridd):
                         print('unknown crash error stop workerid:{}'.format(workerid))
                         workerids.remove(workerid)
+                        self.rds.hincrby(defaults.VREDIS_WORKER,'{}@start'.format(self.taskid),amount=-1)
 
     # 通过一个队列来接受状态回写
     def send_status(self):
@@ -108,14 +110,15 @@ class Sender(common.Initer):
             self.pub.subscribe(rname)
             while not self.rds.pubsub_numsub(rname)[0][1]:
                 time.sleep(.15)
+            self.pubn = int(self.rds.pubsub_numsub(rname)[0][1]) # 一个源于redis自身的问题，这里不一定是1，所以需要进行传递处理。
 
         # 获取任务id 并广播出去，一个对象维护一个taskid
         self.taskid = self.taskid if hasattr(self,'taskid') else \
             self.rds.hincrby(defaults.VREDIS_SENDER,defaults.VREDIS_SENDER_ID)
-        self.order  = {'taskid':self.taskid, 'order':checked_order(input_order)}
-        if defaults.DEBUG:
-            wait_connect_pub_sender(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
+        if defaults.DEBUG: wait_connect_pub_sender(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
+        self.order  = {'taskid':self.taskid, 'order':{**checked_order(input_order),**{'sender_pubn':self.pubn}}}
         self.pubnum = self.rds.publish(defaults.VREDIS_PUBLISH_WORKER, json.dumps(self.order))
+        self.rds.hset(defaults.VREDIS_WORKER,'{}@start'.format(self.taskid),self.pubnum)
         self.send_status()
         return self.taskid
 

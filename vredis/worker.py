@@ -46,6 +46,7 @@ class Worker(common.Initer):
             self._pub.subscribe(rname)
             while not self.rds.pubsub_numsub(rname)[0][1]:
                 time.sleep(.15)
+            self._pubn = int(self.rds.pubsub_numsub(rname)[0][1]) # 一个源于redis自身的问题，这里不一定是1，所以需要进行传递处理。
 
         self.rds            = rds
         self.rds.ping()
@@ -90,7 +91,7 @@ class Worker(common.Initer):
         def _task_func(task_func):
             def pack_task(*a,**kw):
                 # 给任务注入“开始回调”、“错误回调”和“停止回调”的函数,放进线程执行队列
-                _start = self.disassemble_func(send_to_pipeline)(self,taskid,workerid,order,'start')
+                _start = self.disassemble_func(send_to_pipeline)(self,taskid,workerid,order,'start',plus=self._pubn)
                 _error = self.disassemble_func(send_to_pipeline)(self,taskid,workerid,order,'error')
                 _stop  = self.disassemble_func(send_to_pipeline)(self,taskid,workerid,order,'stop')
                 _task  = self.disassemble_func(task_func,start=_start,err=_error,stop=_stop)(*a,**kw)
@@ -182,26 +183,9 @@ class Worker(common.Initer):
                     __very_unique_function_name__ = None
                     taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
 
-                    if check_connect_sender(rds, taskid):
+                    if check_connect_sender(rds, taskid, order['sender_pubn']):
                         try:
-                            # 这里返回的数据如果非 None ，且被包装成字典后是一般的可被 json 序列化的数据
-                            # 那么就会写入 redis 管道里面。
-                            ret = eval(func_str, None, taskenv)
-                            if ret is not None:
-                                # 最外层返回的数据只要是可迭代的，那就迭代。
-                                if isinstance(ret,(types.GeneratorType,list,tuple)):
-                                    for i in ret:
-                                        # 深层的内容可以不用考虑是否是 list 或 tuple 的向下迭代。只管传进去即可。
-                                        if isinstance(i,(list,tuple,dict,int,str,float)):
-                                            send_to_pipeline_data(self, taskid, i, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
-                                        else:
-                                            raise NotInDefaultType('{} not in defaults type:{}.'.format(
-                                                            type(ret),'(GeneratorType,list,tuple,dict,int,str,float)'))        
-                                elif isinstance(ret, (dict,int,str,float)):
-                                    send_to_pipeline_data(self, taskid, ret, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
-                                else:
-                                    raise NotInDefaultType('{} not in defaults type:{}.'.format(
-                                                    type(ret),'(GeneratorType,list,tuple,dict,int,str,float)'))
+                            self.execute_func(taskid,func_str,taskenv,valve)
                         except:
                             # 这里的设计无法抵御网络中断
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
@@ -211,9 +195,29 @@ class Worker(common.Initer):
                         TaskEnv.decr(taskid)
                         continue # 这是为了考虑 redis 的存储量所做的队列清空处理
                 else:
-                    time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
+                    time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
             else:
                 time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
+
+    def execute_func(self,taskid,func_str,taskenv,valve):
+        # 这里返回的数据如果非 None ，且被包装成字典后是一般的可被 json 序列化的数据
+        # 那么就会写入 redis 管道里面。
+        ret = eval(func_str, None, taskenv)
+        if ret is not None:
+            # 最外层返回的数据只要是可迭代的，那就迭代。
+            if isinstance(ret,(types.GeneratorType,list,tuple)):
+                for i in ret:
+                    # 深层的内容可以不用考虑是否是 list 或 tuple 的向下迭代。只管传进去即可。
+                    if isinstance(i,(list,tuple,dict,int,str,float)):
+                        send_to_pipeline_data(self, taskid, i, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
+                    else:
+                        raise NotInDefaultType('{} not in defaults type:{}.'.format(
+                                        type(ret),'(GeneratorType,list,tuple,dict,int,str,float)'))        
+            elif isinstance(ret, (dict,int,str,float)):
+                send_to_pipeline_data(self, taskid, ret, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
+            else:
+                raise NotInDefaultType('{} not in defaults type:{}.'.format(
+                                type(ret),'(GeneratorType,list,tuple,dict,int,str,float)'))
 
 
     # 用于将广播的任务信号拖拽下来进行环境配置的线程群

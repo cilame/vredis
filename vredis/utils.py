@@ -122,14 +122,16 @@ def order_filter():
     return r1 and r2
 
 # 检查链接状态
-def check_connect_sender(rds, taskid):
+def check_connect_sender(rds, taskid, sender_pubn):
     rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, taskid)
-    return bool(rds.pubsub_numsub(rname)[0][1])
+    #print(rds.pubsub_numsub(rname),sender_pubn)
+    return bool(rds.pubsub_numsub(rname)[0][1] >= sender_pubn)
 
 # 检查链接状态
-def check_connect_worker(rds, workerid):
+def check_connect_worker(rds, workerid, workeridd):
     rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_WORKER, workerid)
-    return bool(rds.pubsub_numsub(rname)[0][1])
+    #print(rds.pubsub_numsub(rname),workeridd)
+    return bool(rds.pubsub_numsub(rname)[0][1] >= workeridd[workerid])
 
 
 
@@ -195,7 +197,8 @@ class TaskEnv:
                                                     'lock':0,
                                                     'start':False,
                                                     'digest_dead':0,
-                                                    'swap':True,}
+                                                    'swap':True,
+                                                    'start_num':None,}
 
     def mk_env_locals(__very_unique_self__, __very_unique_script__):
         if order_filter():
@@ -226,7 +229,8 @@ for __very_unique_item__ in locals():
                                                 'lock':0,
                                                 'start':False,
                                                 'digest_dead':0,
-                                                'swap':True,})
+                                                'swap':True,
+                                                'start_num':None,})
         return temp['env_local']
 
     @staticmethod
@@ -236,7 +240,8 @@ for __very_unique_item__ in locals():
                                                 'lock':0,
                                                 'start':False,
                                                 'digest_dead':0,
-                                                'swap':True,})
+                                                'swap':True,
+                                                'start_num':None,})
         return temp['task_local']
 
     @staticmethod
@@ -264,8 +269,10 @@ for __very_unique_item__ in locals():
 
     @staticmethod
     def idle(rds, taskid, workerid):
+        # 看着非常恶心的安全措施代码。
         if taskid in TaskEnv.__taskenv__:
-            keyname = 'idle@{}'.format(taskid)
+            keyname = '{}@idle'.format(taskid)
+            keystart= '{}@start'.format(taskid)
 
             if TaskEnv.__taskenv__[taskid]['start'] == False:
                 TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
@@ -275,26 +282,30 @@ for __very_unique_item__ in locals():
                     print('disconnect task:{}, worker:{}.'.format(taskid,workerid))
                     if TaskEnv.__taskenv__[taskid]['swap'] == False:
                         rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=-1)
+                        TaskEnv.__taskenv__[taskid]['swap'] = True
                     return True 
 
-            if TaskEnv.__taskenv__[taskid]['lock'] == 0 and \
-               TaskEnv.__taskenv__[taskid]['start']:
-                # 这里想了下面的方法来检查该 taskid 下的所有 worker 的状态来检查是否所有爬虫都在空任务队列和空闲状态。
-                # 不能仅仅考虑本地是否处于空闲状态就足以判断是否该结束程序。可能逻辑上没更细细去想，这里的处理也不如线程锁那样干劲利落。
-                # 目前来看是解决了问题的。以后再有问题再考虑了。主要是深夜码代码有点头疼。
-                if TaskEnv.__taskenv__[taskid]['swap'] == False:
-                    rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=-1)
-                    TaskEnv.__taskenv__[taskid]['swap'] = True
-                return int(rds.hget(defaults.VREDIS_WORKER,keyname) or 0) == 0
-            else:
-                if TaskEnv.__taskenv__[taskid]['swap'] == True:
-                    rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=1)
-                    TaskEnv.__taskenv__[taskid]['swap'] = False
+            if TaskEnv.__taskenv__[taskid]['start']:
+                TaskEnv.__taskenv__[taskid]['start_num'] = \
+                                TaskEnv.__taskenv__[taskid]['start_num'] or rds.hget(defaults.VREDIS_WORKER,keystart)
+                if TaskEnv.__taskenv__[taskid]['lock'] == 0:
+                    # 这里想了下面的方法来检查该 taskid 下的所有 worker 的状态来检查是否所有爬虫都在空任务队列和空闲状态。
+                    # 不能仅仅考虑本地是否处于空闲状态就足以判断是否该结束程序。可能逻辑上没更细细去想，这里的处理也不如线程锁那样干劲利落。
+                    # 目前来看是解决了问题的。以后再有问题再考虑了。主要是深夜码代码有点头疼。
+                    if TaskEnv.__taskenv__[taskid]['swap'] == False:
+                        rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=-1)
+                        TaskEnv.__taskenv__[taskid]['swap'] = True
+
+                    _temp = rds.hget(defaults.VREDIS_WORKER,keystart)
+                    limit = 0 if  _temp is None or TaskEnv.__taskenv__[taskid]['start_num'] is None\
+                            else int(TaskEnv.__taskenv__[taskid]['start_num']) - int(_temp)
+                    return int(rds.hget(defaults.VREDIS_WORKER,keyname) or 0) <= limit
+                else:
+                    if TaskEnv.__taskenv__[taskid]['swap'] == True:
+                        rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=1)
+                        TaskEnv.__taskenv__[taskid]['swap'] = False
 
         return False
-
-
-
 
 
 

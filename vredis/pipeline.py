@@ -55,7 +55,8 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
         'workerid': workerid, 
         'taskid': taskid, 
         'piptype': piptype,
-        'msg':msg
+        'msg':msg,
+        'plus':plus if piptype == 'start' else None,
     }
     cls.rds.lpush(_rname, json.dumps(rdata))
 
