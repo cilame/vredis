@@ -110,7 +110,7 @@ class Worker(common.Initer):
             pull_looper = self.connect_work_queue(self.pull_task,   taskid,workerid,order)
             sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order) # 暂未用到
 
-            elif order['command'] == 'cmdline': sett_looper(cmdline_command)(self,taskid,workerid,order)
+            if   order['command'] == 'cmdline': sett_looper(cmdline_command)(self,taskid,workerid,order)
             elif order['command'] == 'script':  pull_looper(script_command) (self,taskid,workerid,order)
 
     def _thread(self,_queue):
