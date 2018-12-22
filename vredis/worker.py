@@ -25,8 +25,6 @@ from .pipeline import (
     from_pipeline_execute,
 )
 from .order import (
-    list_command,
-    attach_command,
     cmdline_command,
     script_command,
 )
@@ -112,8 +110,6 @@ class Worker(common.Initer):
             pull_looper = self.connect_work_queue(self.pull_task,   taskid,workerid,order)
             sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order) # 暂未用到
 
-            if   order['command'] == 'list':    pull_looper(list_command)   (self,taskid,workerid,order)
-            elif order['command'] == 'attach':  pull_looper(attach_command) (self,taskid,workerid,order)
             elif order['command'] == 'cmdline': sett_looper(cmdline_command)(self,taskid,workerid,order)
             elif order['command'] == 'script':  pull_looper(script_command) (self,taskid,workerid,order)
 

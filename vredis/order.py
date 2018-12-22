@@ -21,29 +21,6 @@ def od_filter(func):
             func(*a,**kw)
     return _od_filter
 
-
-
-@od_filter
-def list_command(cls, taskid, workerid, order):
-    subcommand = {'alive':'platform'} if order['subcommand'] == None else order['subcommand']
-    if list(subcommand)[0] == 'alive':
-        d = []
-        for i in subcommand['alive'].split():
-            # 目前暂时只有平台类型的回显
-            if i.strip().lower() == 'platform':
-                d.append(str(platform.platform()))
-        ret = 'workerid:{}, platform:{}.'.format(workerid,' '.join(d))
-        print(ret)
-
-    elif list(subcommand)[0] == 'check':
-        # 这里的展示需要考虑到执行状态的展示，所以需要在考虑正式任务执行的状态收集之后再对这里进行开发。
-        # 功能：
-        # 1 根据 taskid 检查数据状态，执行状态，开启状态，关闭状态等。
-        # 2 根据 taskid 和 workerid 检查单个 workerid 对应的 taskid 的数据状态，执行状态，开启状态，关闭状态等。
-        raise 'UnDevelopment, 正在开发该功能。'
-    else:
-        raise UndevelopmentSubcommand(list(subcommand)[0])
-
 @od_filter
 def cmdline_command(cls, taskid, workerid, order):
     # 暂时还不知道会不会对正在执行的任务有影响
@@ -63,13 +40,6 @@ def cmdline_command(cls, taskid, workerid, order):
                 break
     p.stdout.close()
     p.wait()
-
-@od_filter
-def attach_command(cls, taskid, workerid, order):
-    # 正式任务中是不需要回写的，因为会占用一部分资源，所以非 DEBUG 状态下，默认是将所有显示关闭。
-    # 但是中途想要看看数据显示状态的话，就需要该处的方法，该处的方法
-    pass
-
 
 @od_filter
 def script_command(cls, taskid, workerid, order):

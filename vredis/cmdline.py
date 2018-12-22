@@ -138,11 +138,6 @@ def execute(argv=None):
     args = parse.parse_args()
     if   args.command == 'worker':  deal_with_worker(args)
     elif args.command == 'cmdline': deal_with_cmdline(args)
-    elif args.command == 'attach':  test_deal(args)
-    elif args.command == 'run':     test_deal(args)
-    elif args.command == 'list':    test_deal(args)
-
-    
 
 if __name__ == '__main__':
     execute()

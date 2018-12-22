@@ -45,16 +45,8 @@ VREDIS_WORKER_IDLE_TIME = 2
 VREDIS_WORKER_WAIT_STOP = 1
 
 # 命令的类型，用来简单的约束开发
-# 分别代表：
-# list   列出接收广播worker，
-    # alive 简单的检查存活状态，目前只返回平台信息，后续可能会配置获取更多信息。
-    # check 后续可能会改名字，因为预计是想用来实现检查各个任务执行的当前状态信息。用以统计。
-# run    执行任务，执行那种提交形式的任务（不会对本机的链接挂钩）。
-# attach 接入某个任务队列，修改其日志输出模式，让其向任务端传入日志，
-    # set 由于使用场景不多，替换该功能层级，作为 attach 的一个部分，
-    # connect 也将包含该功能，作为其 attach 两个下数功能之一的带参数的功能部。
-# 增加 script 的指令，这个功能主要是用于将脚本环境的传递
-VREDIS_COMMAND_TYPES = ['list','cmdline','attach','script'] 
+# 放弃之前的大部分考虑，现在发现一个 cmdline 就已经能够满足大部分的需求了。
+VREDIS_COMMAND_TYPES = ['cmdline','script'] 
 VREDIS_COMMAND_STRUCT = {'command','subcommand','settings'}
 
 # 广播命令的传递结构是 {'command': <str> ,'subcommand': <dict> ,'settings': <dict> }

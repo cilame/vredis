@@ -396,9 +396,7 @@ def checked_order(order):
 
     # 结构检查，并填充默认值，使得传输更具备结构性
     # 后续需要在这里配置默认参数的传递，防止只用一个 defaults 配置时无法对交叉的默认参数进行应对。
-    if order['command'] == 'list':      order = check_command(order, ['alive', 'check'])
-    if order['command'] == 'cmdline':   pass # TODO
-    if order['command'] == 'attach':    order = check_command(order, ['set', 'connect'])
+    if order['command'] == 'cmdline':   order = check_command(order)
     if order['command'] == 'script':    order = check_command(order)
     return order
 
