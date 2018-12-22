@@ -19,7 +19,6 @@ class Sender(common.Initer):
 
         self.rds.ping() # 确认链接 redis。
 
-        self.taskstop       = False
         self.start_worker   = []
 
     @classmethod
@@ -40,12 +39,10 @@ class Sender(common.Initer):
             if runinfo and runinfo['piptype'] == 'realtime':
                 print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
             if self.taskstop and runinfo is None:
+                self.logstop = True
                 break
-        print('task stop.') # 任务结束后要打印任务执行的状态，任务执行状态的结构也需要好好考虑一下。
-
 
     def process_stop(self):
-
         def log_start():
             print('[ORDER]:')
             print(re.sub('"VREDIS_SCRIPT": "[^\n]+"', '"VREDIS_SCRIPT": "..."',json.dumps(self.order, indent=4)))
@@ -68,7 +65,7 @@ class Sender(common.Initer):
                 if T: t.append('start workerid:{}'.format(info['workerid']))
             print(json.dumps(t, indent=4))
 
-        log_start()
+        if self.logstart: log_start()
         workerids = [i['workerid']for i in self.start_worker.copy()]
         workeridd = {i['workerid']:i['plus'] for i in self.start_worker.copy()}
         while True and not self.taskstop:
@@ -99,11 +96,14 @@ class Sender(common.Initer):
         if self.start_worker:
             self.start() # 开启debug状态将额外开启两个线程作为输出日志的同步
         else:
+            self.logstop = True
             print('none worker receive task.')
 
 
-    def send(self, input_order):
-        
+    def send(self, input_order, logstart=True):
+        self.taskstop   = False
+        self.logstop    = False
+        self.logstart   = logstart
         def wait_connect_pub_sender(self):
             rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, self.taskid)
             self.pub = self.rds.pubsub()

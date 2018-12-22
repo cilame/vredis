@@ -26,8 +26,8 @@ from .pipeline import (
 )
 from .order import (
     list_command,
-    run_command,
     attach_command,
+    cmdline_command,
     script_command,
 )
 
@@ -112,10 +112,10 @@ class Worker(common.Initer):
             pull_looper = self.connect_work_queue(self.pull_task,   taskid,workerid,order)
             sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order) # 暂未用到
 
-            if   order['command'] == 'list':  pull_looper(list_command)  (self,taskid,workerid,order)
-            elif order['command'] == 'run':   pull_looper(run_command)   (self,taskid,workerid,order)
-            elif order['command'] == 'attach':pull_looper(attach_command)(self,taskid,workerid,order)
-            elif order['command'] == 'script':pull_looper(script_command)(self,taskid,workerid,order)
+            if   order['command'] == 'list':    pull_looper(list_command)   (self,taskid,workerid,order)
+            elif order['command'] == 'attach':  pull_looper(attach_command) (self,taskid,workerid,order)
+            elif order['command'] == 'cmdline': sett_looper(cmdline_command)(self,taskid,workerid,order)
+            elif order['command'] == 'script':  pull_looper(script_command) (self,taskid,workerid,order)
 
     def _thread(self,_queue):
         while True:
@@ -140,11 +140,11 @@ class Worker(common.Initer):
                         start_callback,a,kw,_,_,_ = start
                         start_callback(*a,**kw)
                     func(*args,**kwargs)
-                except Exception as e:
+                except:
                     if err is not None:
                         err_callback,a,kw,_,_,_ = err
                         err_callback(*a,**kw,msg=traceback.format_exc())
-                    valve.delete(taskid)
+                    if valve.VREDIS_CMDLINE is None: valve.delete(taskid)
                     TaskEnv.delete(taskid)
                 finally:
                     self.rds.hdel(defaults.VREDIS_WORKER, taskid)
@@ -162,7 +162,6 @@ class Worker(common.Initer):
             with common.Initer.lock: self._thread_num -= 1
 
     def _thread_run(self):
-        # 这里需要考虑怎么实现环境的搭建和处理了。
         while True:
             if TaskEnv.__taskenv__:
                 ls = list(TaskEnv.__taskenv__)
@@ -230,11 +229,10 @@ class Worker(common.Initer):
         for i in range(defaults.VREDIS_WORKER_THREAD_RUN_NUM):
             Thread(target=self._thread_run).start()
 
-    # 动态配置需额外开启另一条线程执行，防止线程池卡死时无法进行配置的情况。
-    # 这里暂时是没有被用到的，后续再开发时候在处理
-    # def process_run_set(self):
-    #     for i in range(defaults.VREDIS_WORKER_THREAD_SETTING_NUM):
-    #         Thread(target=self._thread,args=(self.setting_task,)).start()
+    # 这里将作为命令行传输执行的管道
+    def process_run_set(self):
+        for i in range(defaults.VREDIS_WORKER_THREAD_SETTING_NUM):
+            Thread(target=self._thread,args=(self.setting_task,)).start()
 
 
 _o_print = print

@@ -54,7 +54,7 @@ VREDIS_WORKER_WAIT_STOP = 1
     # set 由于使用场景不多，替换该功能层级，作为 attach 的一个部分，
     # connect 也将包含该功能，作为其 attach 两个下数功能之一的带参数的功能部。
 # 增加 script 的指令，这个功能主要是用于将脚本环境的传递
-VREDIS_COMMAND_TYPES = ['list','run','attach','script'] 
+VREDIS_COMMAND_TYPES = ['list','cmdline','attach','script'] 
 VREDIS_COMMAND_STRUCT = {'command','subcommand','settings'}
 
 # 广播命令的传递结构是 {'command': <str> ,'subcommand': <dict> ,'settings': <dict> }
@@ -62,6 +62,7 @@ VREDIS_COMMAND_STRUCT = {'command','subcommand','settings'}
 # 所以考虑到这一点，这边需要在 defaults 里面添加一个 VREDIS_SCRIPT 的参数来管理方便处理
 # 并且要注意的是，尽量在后续开发时候，不要让配置内容的接口变成分开传递，会有问题。
 VREDIS_SCRIPT = None
+VREDIS_CMDLINE = None
 
 # 队列过多时，脚本发送的日志默认只显示前10条 workerid，如需显示更多的 workerid 需要修改这里。
 # 不过要检查 worker 的状态不应该在任务执行提交时检查，最好用 list 去检查会获取更多信息
@@ -72,12 +73,12 @@ VREDIS_LIMIT_LOG_WORKER_NUM = 10
 DEBUG = True
 
 # 实时回写控制台日志
-# 随机选择一个任务进行实时日志回写，“随机一个”和“指定taskid或指定workerid”互斥。
-# 当指定 taskid 和 workerid 进行过滤输出时，“随机选择一个”的配置就会失效
+# 随机选择一个任务进行实时日志回写，“随机N个”和“指定taskid或指定workerid”互斥。
+# 当指定 taskid 和 workerid 进行过滤输出时，“随机选择N个”的配置就会失效
 # 如果这里不设置的话，就默认是全部
 VREDIS_KEEP_LOG_CONSOLE = False # 是否保持 worker 端的命令行执行。
 VREDIS_KEEP_LOG_ITEM = False # 是否需要打印收集到的数据
-VREDIS_FILTER_LOG_RANDOM_ONE = False # 现在默认关闭，因为感觉这个功能很鸡肋，可有可无
+VREDIS_FILTER_LOG_RANDOM_N = False # 现在默认关闭，暂时没时间开发
 VREDIS_FILTER_LOG_TASKID = None
 VREDIS_FILTER_LOG_WORKERID = None
 

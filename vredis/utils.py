@@ -93,7 +93,7 @@ def find_task_locals_by_thread():
 def log_filter(taskid,workerid,valve,rdm):
     # 这里不把 find_task_locals_by_thread 函数包装进去，
     # 是因为前置需要用到 find_task_locals_by_thread 函数的返回值进行判断
-    if valve.VREDIS_FILTER_LOG_RANDOM_ONE \
+    if valve.VREDIS_FILTER_LOG_RANDOM_N \
         and valve.VREDIS_FILTER_LOG_TASKID is None\
         and valve.VREDIS_FILTER_LOG_WORKERID is None:
         return rdm == 1
@@ -326,15 +326,15 @@ def checked_order(order):
         if order['command'] == 'list':
             d = dict(
                 VREDIS_KEEP_LOG_CONSOLE         = bool(debug),  # 默认关闭，是否保持工作端的打印输出 
-                VREDIS_FILTER_LOG_RANDOM_ONE    = False,
-                # 默认关闭，如果没有设置过滤的 taskid或 workerid，是否随机选一个回显
+                VREDIS_FILTER_LOG_RANDOM_N    = False,
+                # 默认关闭，如果没有设置过滤的 taskid或 workerid，是否随机选N个回显
                 # 若关闭，且未设置过滤列表（任务id或工作id）则回写全部
                 # defaults 里面也是默认关闭这项的，这项主要是用于单独调试脚本，
                 # 多个任务同时回写看上去很乱，这只是为了一个更简化的个人使用方式。
                 # 这里写出来就是提醒一下存在这个可以配置的参数而已。
                 # 现在考虑了一下，感觉实际用处不大，后续这个参数将作为可有可无的废弃状态。
             )
-        elif order['command'] == 'run':
+        elif order['command'] == 'cmdline':
             d = dict(
                 VREDIS_KEEP_LOG_CONSOLE         = bool(debug),
             )
@@ -396,9 +396,9 @@ def checked_order(order):
 
     # 结构检查，并填充默认值，使得传输更具备结构性
     # 后续需要在这里配置默认参数的传递，防止只用一个 defaults 配置时无法对交叉的默认参数进行应对。
-    if order['command'] == 'list':  order = check_command(order, ['alive', 'check'])
-    if order['command'] == 'run':   pass # TODO
-    if order['command'] == 'attach':order = check_command(order, ['set', 'connect'])
-    if order['command'] == 'script':order = check_command(order)
+    if order['command'] == 'list':      order = check_command(order, ['alive', 'check'])
+    if order['command'] == 'cmdline':   pass # TODO
+    if order['command'] == 'attach':    order = check_command(order, ['set', 'connect'])
+    if order['command'] == 'script':    order = check_command(order)
     return order
 

@@ -39,12 +39,14 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
         valve,TaskEnv = plus
         # 应该判断的是该任务下的所有 worker 是否都处理 idle状态
         # 而不是仅仅只判断本地的状态。具体的 idle 处理看 TaskEnv 类具体实现。
-        while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid, workerid): 
-            time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
+        if valve.VREDIS_CMDLINE is None:
+            while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid, workerid): 
+                time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
             # 这里暂时只考虑了命令行保持链接时挂钩的移除动作
             # 后续还需要考虑怎么提交式的任务，提交后就不管的那种
-            valve.delete(taskid)
+            if valve.VREDIS_CMDLINE is None:
+                valve.delete(taskid)
             TaskEnv.delete(taskid)
             cls.tasklist.remove(taskid)
         except:

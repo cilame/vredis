@@ -1,9 +1,11 @@
 import sys
 import argparse
 import re
+import time
 
 from . import defaults
 from .worker import Worker
+from .sender import Sender
 
 vredis_command_types = defaults.VREDIS_COMMAND_TYPES
 vredis_command_types.remove('script') 
@@ -88,6 +90,22 @@ def deal_with_worker(args):
     wk = Worker.from_settings(host=host,port=port,password=password,db=db)
     wk.start()
 
+def deal_with_cmdline(args):
+    print('[ use CTRL+PAUSE to break ]')
+    host        = args.host
+    port        = int(args.port)
+    password    = args.password
+    db          = int(args.db)
+    workerfilter= list(map(int,args.workerfilter.split(','))) if args.workerfilter!='all' else None
+    sd = Sender.from_settings(host=host,port=port,password=password,db=db)
+    while True:
+        cmd = input('cmd/ ')
+        if cmd.strip():
+            sd.send({'command':'cmdline','settings':{'VREDIS_CMDLINE':cmd,
+                                                     #'VREDIS_KEEP_LOG_CONSOLE':True,
+                                                     'VREDIS_FILTER_WORKERID':workerfilter}},logstart=False)
+            while not sd.logstop:
+                time.sleep(.15)
 
 def test_deal(args):
     host        = args.host
@@ -119,7 +137,7 @@ def execute(argv=None):
 
     args = parse.parse_args()
     if   args.command == 'worker':  deal_with_worker(args)
-    elif args.command == 'cmdline': test_deal(args)
+    elif args.command == 'cmdline': deal_with_cmdline(args)
     elif args.command == 'attach':  test_deal(args)
     elif args.command == 'run':     test_deal(args)
     elif args.command == 'list':    test_deal(args)

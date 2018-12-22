@@ -1,4 +1,5 @@
 import platform
+import subprocess
 
 from . import common
 from .error import UndevelopmentSubcommand
@@ -6,6 +7,7 @@ from .utils import (
     order_filter, 
     find_task_locals_by_thread,
     TaskEnv,
+    check_connect_sender,
 )
 
 
@@ -43,17 +45,24 @@ def list_command(cls, taskid, workerid, order):
         raise UndevelopmentSubcommand(list(subcommand)[0])
 
 @od_filter
-def run_command(cls, taskid, workerid, order):
-    # 状态问题：
-    # 这一步需要很小心的开发，因为这里含有状态统计的需求，需要随时都能看到收集的状态
-    # 目前打算是考虑生成一个统一的 stat 状态管理类来统一管理，像是阀门类那样进行操作即可。
-    # 数据也经量放在一个能够稳定管理数据的地方
-    #（目前考虑是直接放在 redis 里面，后续会兼容 mysql或sqlite3 之类的，因为 redis 崩溃会丢失数据的可能） 
-    # 收集问题：
-    # 默认开发是将数据放入 redis 内部管道，不过尽量开发一个可以配置直接传入其他数据库进行持久化的功能
-    # 这样就更方便的直接传输数据。
-    pass
-
+def cmdline_command(cls, taskid, workerid, order):
+    # 暂时还不知道会不会对正在执行的任务有影响
+    cmd = order['settings']['VREDIS_CMDLINE']
+    print(cmd)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1)
+    for line in iter(p.stdout.readline, b''):
+        try:
+            line = line.decode('utf-8').strip()
+            print(line)
+        except:
+            line = line.decode('gbk').strip()
+            print(line)
+        finally:
+            # 存在无限的命令，所以这里需要靠连接状态的挂钩才能断开
+            if not check_connect_sender(cls.rds, taskid, order['sender_pubn']):
+                break
+    p.stdout.close()
+    p.wait()
 
 @od_filter
 def attach_command(cls, taskid, workerid, order):
