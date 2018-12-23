@@ -79,7 +79,8 @@ class Sender(common.Initer):
                     if not check_connect_worker(self.rds, workerid, workeridd):
                         print('unknown crash error stop workerid:{}'.format(workerid))
                         workerids.remove(workerid)
-                        self.rds.hincrby(defaults.VREDIS_WORKER,'{}@start'.format(self.taskid),amount=-1)
+                        temp = self.rds.hget(defaults.VREDIS_WORKER,'{}@task{}'.format(self.taskid,workerid)) or 0
+                        self.rds.hincrby(defaults.VREDIS_WORKER,'{}@curr'.format(self.taskid),amount= -int(temp)) # 这里负数
 
     # 通过一个队列来接受状态回写
     def send_status(self):
@@ -119,6 +120,7 @@ class Sender(common.Initer):
         self.order  = {'taskid':self.taskid, 'order':{**checked_order(input_order),**{'sender_pubn':self.pubn}}}
         self.pubnum = self.rds.publish(defaults.VREDIS_PUBLISH_WORKER, json.dumps(self.order))
         self.rds.hset(defaults.VREDIS_WORKER,'{}@start'.format(self.taskid),self.pubnum)
+        self.rds.hset(defaults.VREDIS_WORKER,'{}@curr'.format(self.taskid),self.pubnum)
         self.send_status()
         return self.taskid
 

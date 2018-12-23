@@ -197,8 +197,7 @@ class TaskEnv:
                                                     'lock':0,
                                                     'start':False,
                                                     'digest_dead':0,
-                                                    'swap':True,
-                                                    'start_num':None,}
+                                                    'swap':True,}
 
     def mk_env_locals(__very_unique_self__, __very_unique_script__):
         if order_filter():
@@ -229,8 +228,7 @@ for __very_unique_item__ in locals():
                                                 'lock':0,
                                                 'start':False,
                                                 'digest_dead':0,
-                                                'swap':True,
-                                                'start_num':None,})
+                                                'swap':True,})
         return temp['env_local']
 
     @staticmethod
@@ -240,8 +238,7 @@ for __very_unique_item__ in locals():
                                                 'lock':0,
                                                 'start':False,
                                                 'digest_dead':0,
-                                                'swap':True,
-                                                'start_num':None,})
+                                                'swap':True,})
         return temp['task_local']
 
     @staticmethod
@@ -271,8 +268,10 @@ for __very_unique_item__ in locals():
     def idle(rds, taskid, workerid):
         # 看着非常恶心的安全措施代码。
         if taskid in TaskEnv.__taskenv__:
-            keyname = '{}@idle'.format(taskid)
-            keystart= '{}@start'.format(taskid)
+            keyidle = '{}@idle'.format(taskid)
+            keystart= '{}@start'.format(taskid) # 接受该任务的 worker 数量
+            keycurr = '{}@curr'.format(taskid)  # 当前该任务的数量
+            keytkwk = '{}@task{}'.format(taskid,workerid)
 
             if TaskEnv.__taskenv__[taskid]['start'] == False:
                 TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
@@ -281,28 +280,44 @@ for __very_unique_item__ in locals():
                     # 不过这种的处理场景不多(例如一个任务n个线程跑)
                     print('disconnect task:{}, worker:{}.'.format(taskid,workerid))
                     if TaskEnv.__taskenv__[taskid]['swap'] == False:
-                        rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=-1)
+                        with rds.pipeline() as pipe:
+                            pipe.multi()
+                            pipe.hincrby(defaults.VREDIS_WORKER,keyidle,amount=-1)
+                            pipe.hset(defaults.VREDIS_WORKER,keytkwk,0)
+                            pipe.execute()
                         TaskEnv.__taskenv__[taskid]['swap'] = True
                     return True 
 
             if TaskEnv.__taskenv__[taskid]['start']:
-                TaskEnv.__taskenv__[taskid]['start_num'] = \
-                                TaskEnv.__taskenv__[taskid]['start_num'] or rds.hget(defaults.VREDIS_WORKER,keystart)
                 if TaskEnv.__taskenv__[taskid]['lock'] == 0:
                     # 这里想了下面的方法来检查该 taskid 下的所有 worker 的状态来检查是否所有爬虫都在空任务队列和空闲状态。
                     # 不能仅仅考虑本地是否处于空闲状态就足以判断是否该结束程序。可能逻辑上没更细细去想，这里的处理也不如线程锁那样干劲利落。
                     # 目前来看是解决了问题的。以后再有问题再考虑了。主要是深夜码代码有点头疼。
+                    # 后来发现了一个问题就是在 worker 端爆炸的时候，没办法确定是否是处于 +1 还是 0 的状态，所以就不好以数字进行判断。
+                    # 所以可能还需要加一个开关来实现这里的问题。
                     if TaskEnv.__taskenv__[taskid]['swap'] == False:
-                        rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=-1)
+                        with rds.pipeline() as pipe:
+                            pipe.multi()
+                            pipe.hincrby(defaults.VREDIS_WORKER,keyidle,amount=-1)
+                            pipe.hset(defaults.VREDIS_WORKER,keytkwk,0)
+                            pipe.execute()
                         TaskEnv.__taskenv__[taskid]['swap'] = True
 
-                    _temp = rds.hget(defaults.VREDIS_WORKER,keystart)
-                    limit = 0 if  _temp is None or TaskEnv.__taskenv__[taskid]['start_num'] is None\
-                            else int(TaskEnv.__taskenv__[taskid]['start_num']) - int(_temp)
-                    return int(rds.hget(defaults.VREDIS_WORKER,keyname) or 0) <= limit
+                    _curre = rds.hget(defaults.VREDIS_WORKER,keycurr)
+                    _start = rds.hget(defaults.VREDIS_WORKER,keystart)
+                    limit = 0 if _start is None or _curre is None else int(_start) - int(_curre)
+                    return int(rds.hget(defaults.VREDIS_WORKER,keyidle) or 0) <= limit
+                    # 正常情况下空闲id的数量为0则直接断开连接，但是存在意外断开连接的情况
+                    # 当某条 worker 断开的时候，要判断断开时是否进行了 keyidle 增情况，如果存在
+                    # 那么就要将判断上限提高1，否则逻辑上走不通，这个地方要与sender进行一定的沟通
+                    # 从代码上看上比较复杂。想说的就是，一切都是为了更加安全。
                 else:
                     if TaskEnv.__taskenv__[taskid]['swap'] == True:
-                        rds.hincrby(defaults.VREDIS_WORKER,keyname,amount=1)
+                        with rds.pipeline() as pipe:
+                            pipe.multi()
+                            pipe.hincrby(defaults.VREDIS_WORKER,keyidle,amount=1)
+                            pipe.hset(defaults.VREDIS_WORKER,keytkwk,1)
+                            pipe.execute()
                         TaskEnv.__taskenv__[taskid]['swap'] = False
 
         return False
