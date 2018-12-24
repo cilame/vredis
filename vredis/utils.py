@@ -268,7 +268,7 @@ for __very_unique_item__ in locals():
     def idle(rds, taskid, workerid):
         # 看着非常恶心的安全措施代码。
         if taskid in TaskEnv.__taskenv__:
-            keyidle = '{}@idle'.format(taskid)
+            keyidle = '{}@idle'.format(taskid)  # 当 idle <= current - start 时则给任务返回空闲信号，发送 stop 信号给sender。
             keystart= '{}@start'.format(taskid) # 接受该任务的 worker 数量
             keycurr = '{}@curr'.format(taskid)  # 当前该任务的数量
             keytkwk = '{}@task{}'.format(taskid,workerid)
@@ -307,7 +307,7 @@ for __very_unique_item__ in locals():
                     _start = rds.hget(defaults.VREDIS_WORKER,keystart)
                     limit = 0 if _start is None or _curre is None else int(_start) - int(_curre)
                     return int(rds.hget(defaults.VREDIS_WORKER,keyidle) or 0) <= limit
-                    # 正常情况下空闲id的数量为0则直接断开连接，但是存在意外断开连接的情况
+                    # 正常情况下空闲id的数量为0则直接断开连接，但是存在某些 worker 意外断开连接的情况
                     # 当某条 worker 断开的时候，要判断断开时是否进行了 keyidle 增情况，如果存在
                     # 那么就要将判断上限提高1，否则逻辑上走不通，这个地方要与sender进行一定的沟通
                     # 从代码上看上比较复杂。想说的就是，一切都是为了更加安全。
@@ -335,6 +335,7 @@ def checked_order(order):
 
     def defaults_settings(order):
         # 针对不同指令实现不同的默认参数配置
+        # 开发时可以通过这里的配置防止各个默认状态的配置交叉感染
 
         order['settings'] = {} if order['settings'] is None else order['settings']
         debug = order['settings']['DEBUG'] if 'DEBUG' in order['settings'] else defaults.DEBUG
