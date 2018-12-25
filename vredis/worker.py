@@ -7,7 +7,6 @@ import queue
 import traceback
 import logging
 import random
-import types
 
 from . import defaults
 from . import common
@@ -159,15 +158,14 @@ class Worker(common.Initer):
 
     def _thread_run(self):
         while True:
-            if TaskEnv.__taskenv__:
-                ls = list(TaskEnv.__taskenv__)
-                ls = random.sample(ls, len(ls)) # 随机化序列而不是随机选一个，因为 redis 从管道取时可以传入复数的管道名字
-                ret = from_pipeline_execute(self, ls)
-                if ret:
-                    taskid      = ret['taskid']
-                    func_name   = ret['function'] # 抽取传递过来的函数名字
-                    args        = ret['args']
-                    kwargs      = ret['kwargs']
+            for etask in list(TaskEnv.__taskenv__):
+                # 为了安全的实现 worker 的缓冲任务能够在crash后分派给别的任务，这里替换成新的处理方式
+                ret,rdata = from_pipeline_execute(self, etask)
+                if rdata:
+                    taskid      = rdata['taskid']
+                    func_name   = rdata['function'] # 抽取传递过来的函数名字
+                    args        = rdata['args']
+                    kwargs      = rdata['kwargs']
                     TaskEnv.incr(taskid)
 
                     func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
@@ -180,7 +178,7 @@ class Worker(common.Initer):
 
                     if check_connect_sender(rds, taskid, order['sender_pubn']):
                         try:
-                            self.execute_func(taskid,func_str,taskenv,valve)
+                            self.execute_func(taskid,func_str,taskenv,ret,valve)
                         except:
                             # 这里的设计无法抵御网络中断
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
@@ -189,30 +187,13 @@ class Worker(common.Initer):
                     else:
                         TaskEnv.decr(taskid)
                         continue # 这是为了考虑 redis 的存储量所做的队列清空处理
-                else:
-                    time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
-            else:
-                time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
+            time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
 
-    def execute_func(self,taskid,func_str,taskenv,valve):
+    def execute_func(self,taskid,func_str,taskenv,ret,valve):
         # 这里返回的数据如果非 None ，且被包装成字典后是一般的可被 json 序列化的数据
-        # 那么就会写入 redis 管道里面。
-        ret = eval(func_str, None, taskenv)
-        if ret is not None:
-            # 最外层返回的数据只要是可迭代的，那就迭代。
-            if isinstance(ret,(types.GeneratorType,list,tuple)):
-                for i in ret:
-                    # 深层的内容可以不用考虑是否是 list 或 tuple 的向下迭代。只管传进去即可。
-                    if isinstance(i,(list,tuple,dict,int,str,float)):
-                        send_to_pipeline_data(self, taskid, i, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
-                    else:
-                        raise NotInDefaultType('{} not in defaults type:{}.'.format(
-                                        type(ret),'(GeneratorType,list,tuple,dict,int,str,float)'))        
-            elif isinstance(ret, (dict,int,str,float)):
-                send_to_pipeline_data(self, taskid, ret, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
-            else:
-                raise NotInDefaultType('{} not in defaults type:{}.'.format(
-                                type(ret),'(GeneratorType,list,tuple,dict,int,str,float)'))
+        # 那么就会写入 redis 管道里面。用于数据收集。
+        data = eval(func_str, None, taskenv)
+        send_to_pipeline_data(self, taskid, data, ret, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
 
 
     # 用于将广播的任务信号拖拽下来进行环境配置的线程群

@@ -279,13 +279,6 @@ for __very_unique_item__ in locals():
                     # 连续超过 3 次idle判断都未启动则代表线程可能处于卡死状态，自动销毁
                     # 不过这种的处理场景不多(例如一个任务n个线程跑)
                     print('disconnect task:{}, worker:{}.'.format(taskid,workerid))
-                    if TaskEnv.__taskenv__[taskid]['swap'] == False:
-                        with rds.pipeline() as pipe:
-                            pipe.multi()
-                            pipe.hincrby(defaults.VREDIS_WORKER,keyidle,amount=-1)
-                            pipe.hset(defaults.VREDIS_WORKER,keytkwk,0)
-                            pipe.execute()
-                        TaskEnv.__taskenv__[taskid]['swap'] = True
                     return True 
 
             if TaskEnv.__taskenv__[taskid]['start']:

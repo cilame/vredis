@@ -82,6 +82,14 @@ class Sender(common.Initer):
                         temp = self.rds.hget(defaults.VREDIS_WORKER,'{}@task{}'.format(self.taskid,workerid)) or 0
                         self.rds.hincrby(defaults.VREDIS_WORKER,'{}@curr'.format(self.taskid),amount= -int(temp)) # 这里负数
 
+                        # 异常 worker 缓冲区中的内容重新传回目标任务
+                        _rname = '{}:{}'.format(defaults.VREDIS_TASK, self.taskid)
+                        _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
+                        while self.rds.llen(_cname) != 0:
+                            _, ret = self.rds.brpop(_cname, defaults.VREDIS_TASK_TIMEOUT)
+                            self.rds.rpush(_rname, ret) # 传回任务队列右端优先处理
+
+
     # 通过一个队列来接受状态回写
     def send_status(self):
         start_worker = []

@@ -20,6 +20,7 @@ VREDIS_WORKER_ID = 'id'
 
 # 广播的任务的处理和队列任务的处理不一样。需要考虑怎么解决问题。
 VREDIS_TASK = 'vredis:task'
+VREDIS_TASK_CACHE = 'vredis:cache'
 VREDIS_TASK_TIMEOUT = 3
 
 # 数据传输的管道名字，和前面的管道一样，都是在运行时加上 taskid 来分割空间

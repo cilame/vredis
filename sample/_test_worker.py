@@ -9,6 +9,7 @@ sys.path.append(p)
 
 import vredis
 s = vredis.Worker.from_settings(host='47.99.126.229',port=6379,password='vilame')
+#s = vredis.Worker()
 s.start()
 
 

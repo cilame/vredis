@@ -1,5 +1,6 @@
 import json
 import time
+import types
 
 from .error import NotInDefaultsSetting
 from . import defaults
@@ -115,16 +116,15 @@ def send_to_pipeline_real_time(taskid,workerid,order,rds,msg):
 
 # 单片的任务指令的传递，这种只能用管道来实现才不会起执行的冲突
 def from_pipeline_execute(cls, taskid):
-    if type(taskid) == list:
-        _rname = ['{}:{}'.format(defaults.VREDIS_TASK,_taskid)for _taskid in taskid]
-    else:
-        _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+    _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+    _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, cls.workerid)
     try:
-        _, ret = cls.rds.brpop(_rname, defaults.VREDIS_TASK_TIMEOUT)
-        rdata = json.loads(ret) # ret 必是一个 json 字符串。
+        # 通过 brpoplpush 这样的原子操作在 redis 上面制造缓冲空间，让意外断开连接不会影响任务的执行
+        ret = cls.rds.brpoplpush(_rname, _cname, defaults.VREDIS_TASK_TIMEOUT)
+        rdata = json.loads(ret)
     except:
-        rdata = None
-    return rdata
+        ret,rdata = None,None
+    return ret,rdata
 
 # 单片任务需要传递的就是直接执行的任务名字
 def send_to_pipeline_execute(cls, taskid, function_name, args, kwargs):
@@ -157,12 +157,40 @@ def from_pipeline_data(cls, taskid, name='default'):
     return rdata
 
 # 数据传递需要给一个名字来指定数据的管道，因为可能一次任务中需要收集n种数据。
-def send_to_pipeline_data(cls, taskid, data, name='default', valve=None):
+def send_to_pipeline_data(cls, taskid, data, ret, name='default', valve=None):
+
+    def mk_sdata(data):
+        return json.dumps({'taskid': taskid, 'data': data,})
+
+    its = []
+    dt = None
+    lg = True if valve is not None and valve.VREDIS_KEEP_LOG_ITEM else False
+    if data is not None:
+        # 最外层返回的数据只要是list，或是tuple，那就迭代取出然后准备传入 redis。
+        if isinstance(data,(types.GeneratorType,list,tuple)):
+            for i in data:
+                # 深层的内容可以不用考虑是否是 list 或 tuple 的向下迭代。只管传进去即可。
+                if isinstance(i,(list,tuple,dict,int,str,float)):
+                    its.append(mk_sdata(i))
+                else:
+                    raise NotInDefaultType('{} not in defaults type:{}.'.format(
+                                    type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))        
+        elif isinstance(data, (dict,int,str,float)):
+            dt = mk_sdata(data)
+        else:
+            raise NotInDefaultType('{} not in defaults type:{}.'.format(
+                            type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))
+
     _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, name)
-    sdata = {
-        'taskid': taskid,
-        'data': data,
-    }
-    if valve is not None and valve.VREDIS_KEEP_LOG_ITEM:
-        print(sdata)
-    cls.rds.lpush(_rname, json.dumps(sdata))
+    _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, cls.workerid)
+
+    with cls.rds.pipeline() as pipe:
+        pipe.multi()
+        for it in its:
+            pipe.lpush(_rname, it)
+            if lg: print(it)
+        if dt is not None:
+            pipe.lpush(_rname, dt)
+            if lg: print(dt)
+        pipe.lrem(_cname, -1, ret)
+        pipe.execute()

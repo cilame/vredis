@@ -30,8 +30,9 @@ def some(i):
 @pipe
 def some2(i):
     print('use func2:{}'.format(i))
+    return 333333,444444
 
-for i in range(100):
+for i in range(500):
     some2(i)
     some(i)
 
