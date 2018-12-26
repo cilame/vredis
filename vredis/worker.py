@@ -53,7 +53,7 @@ class Worker(common.Initer):
         self.pub.subscribe(defaults.VREDIS_PUBLISH_WORKER)
 
         self.pull_task      = queue.Queue()
-        self.setting_task   = queue.Queue() # 暂未用到
+        self.cmdline_task   = queue.Queue() # 暂未用到
         self.workerid       = self.rds.hincrby(defaults.VREDIS_WORKER, defaults.VREDIS_WORKER_ID)\
                                 if workerid is None else workerid
 
@@ -107,9 +107,9 @@ class Worker(common.Initer):
             taskid      = order['taskid']
             order       = order['order']
             pull_looper = self.connect_work_queue(self.pull_task,   taskid,workerid,order)
-            sett_looper = self.connect_work_queue(self.setting_task,taskid,workerid,order) # 暂未用到
+            cmdl_looper = self.connect_work_queue(self.cmdline_task,taskid,workerid,order) # 暂未用到
 
-            if   order['command'] == 'cmdline': sett_looper(cmdline_command)(self,taskid,workerid,order)
+            if   order['command'] == 'cmdline': cmdl_looper(cmdline_command)(self,taskid,workerid,order)
             elif order['command'] == 'script':  pull_looper(script_command) (self,taskid,workerid,order)
 
     def _thread(self,_queue):
@@ -145,7 +145,7 @@ class Worker(common.Initer):
                     self.rds.hdel(defaults.VREDIS_WORKER, taskid)
                     if stop is not None:
                         stop_callback,a,kw,_,_,_ = stop
-                        if self._thread_num < defaults.VREDIS_WORKER_THREAD_PULL_NUM:
+                        if self._thread_num < defaults.VREDIS_WORKER_THREAD_TASK_NUM:
                             stop_callback(*a,**kw,plus=(valve,TaskEnv))
                         else:
                             print('Warning! More than {} tasks are currently being performed, workerid:{}.' \
@@ -166,6 +166,7 @@ class Worker(common.Initer):
                     func_name   = rdata['function'] # 抽取传递过来的函数名字
                     args        = rdata['args']
                     kwargs      = rdata['kwargs']
+                    plus        = rdata['plus']
                     TaskEnv.incr(taskid)
 
                     func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
@@ -175,10 +176,12 @@ class Worker(common.Initer):
                     # 看着没用实际有用（用于挂钩标准输出流）
                     __very_unique_function_name__ = None
                     taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
+                    table = plus.get('table',valve.VREDIS_DATA_DEFAULT_TABLE)
 
                     if check_connect_sender(rds, taskid, order['sender_pubn']):
                         try:
-                            self.execute_func(taskid,func_str,taskenv,ret,valve)
+                            data = eval(func_str, None, taskenv)
+                            send_to_pipeline_data(self,taskid,data,ret,table,valve)
                         except:
                             # 这里的设计无法抵御网络中断
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
@@ -189,16 +192,9 @@ class Worker(common.Initer):
                         continue # 这是为了考虑 redis 的存储量所做的队列清空处理
             time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
 
-    def execute_func(self,taskid,func_str,taskenv,ret,valve):
-        # 这里返回的数据如果非 None ，且被包装成字典后是一般的可被 json 序列化的数据
-        # 那么就会写入 redis 管道里面。用于数据收集。
-        data = eval(func_str, None, taskenv)
-        send_to_pipeline_data(self, taskid, data, ret, valve.VREDIS_DATA_DEFAULT_TABLE, valve)
-
-
     # 用于将广播的任务信号拖拽下来进行环境配置的线程群
     def process_pull_task(self):
-        for i in range(defaults.VREDIS_WORKER_THREAD_PULL_NUM):
+        for i in range(defaults.VREDIS_WORKER_THREAD_TASK_NUM):
             Thread(target=self._thread,args=(self.pull_task,)).start()
 
     # 直接执行任务的线程群
@@ -207,9 +203,9 @@ class Worker(common.Initer):
             Thread(target=self._thread_run).start()
 
     # 这里将作为命令行传输执行的管道
-    def process_run_set(self):
-        for i in range(defaults.VREDIS_WORKER_THREAD_SETTING_NUM):
-            Thread(target=self._thread,args=(self.setting_task,)).start()
+    def process_run_cmdline(self):
+        for i in range(defaults.VREDIS_WORKER_THREAD_TASK_NUM):
+            Thread(target=self._thread,args=(self.cmdline_task,)).start()
 
 
 _o_print = print

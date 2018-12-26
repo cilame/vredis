@@ -275,8 +275,8 @@ for __very_unique_item__ in locals():
 
             if TaskEnv.__taskenv__[taskid]['start'] == False:
                 TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
-                if TaskEnv.__taskenv__[taskid]['digest_dead'] > 7:
-                    # 连续超过 3 次idle判断都未启动则代表线程可能处于卡死状态，自动销毁
+                if TaskEnv.__taskenv__[taskid]['digest_dead'] > 5:
+                    # 连续超过 5 次idle判断都未启动则代表线程可能处于卡死状态，自动销毁
                     # 不过这种的处理场景不多(例如一个任务n个线程跑)
                     print('disconnect task:{}, worker:{}.'.format(taskid,workerid))
                     return True 

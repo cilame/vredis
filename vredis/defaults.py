@@ -38,9 +38,8 @@ VREDIS_PUBLISH_SENDER = 'vredis:publish:sender'
 # 不过这里的配置已经是非常重要的 worker 全局配置了。
 # 当 “正在执行” 的任务数到达16时（.._PULL_NUM），第17个任务的 stop_callback 将开新线程。防止任务的线程池不够用。
 # 暂时没想过如果 “正在执行” 的task任务数量过高的情况下的限制。
-VREDIS_WORKER_THREAD_PULL_NUM = 17
+VREDIS_WORKER_THREAD_TASK_NUM = 17
 VREDIS_WORKER_THREAD_RUN_NUM = 20
-VREDIS_WORKER_THREAD_SETTING_NUM = 3
 
 VREDIS_WORKER_IDLE_TIME = 2
 VREDIS_WORKER_WAIT_STOP = 1

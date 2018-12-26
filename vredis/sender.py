@@ -133,6 +133,6 @@ class Sender(common.Initer):
         return self.taskid
 
 
-    def send_execute(self, taskid, function_name, args, kwargs):
+    def send_execute(self, taskid, function_name, args, kwargs, plus):
         if self.start_worker:
-            send_to_pipeline_execute(self, taskid, function_name, args, kwargs)
+            send_to_pipeline_execute(self, taskid, function_name, args, kwargs, plus)

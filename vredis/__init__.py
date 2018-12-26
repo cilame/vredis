@@ -2,7 +2,7 @@ import inspect
 
 from .sender import Sender
 from .worker import Worker
-from .error import SenderAlreadyStarted
+from .error import SenderAlreadyStarted,NotInDefaultType
 
 class Pipe:
     def __init__(self,):
@@ -36,7 +36,7 @@ class Pipe:
         self.sender = Sender.from_settings(**self.settings)
         return self
 
-    def __call__(self, func):
+    def __call__(self, func, **plus):
         src = inspect.getsource(func)
         src = '\n'.join(filter(lambda i:not i.strip().startswith('@'), src.splitlines()))+'\n'
         self.script += src
@@ -47,8 +47,27 @@ class Pipe:
                                                                                    'DEBUG':self.DEBUG,
                                                                                    'VREDIS_KEEP_LOG_ITEM':self.LOG_ITEM}})
                 self.unstart    = False
-            self.sender.send_execute(self.tid, func.__name__, args, kwargs)
+            self.sender.send_execute(self.tid, func.__name__, args, kwargs, plus)
         return _wrapper
+
+
+
+
+    def set(self, **plus):
+        # 这里的 plus 主要是由 worker 端的需求进行的需求处理，这里暂时就不多设定了
+        # 不过为了约束执行初期的异常，这里暂时需要一个临时的验证。
+        _types = ['table']
+        for i in plus:
+            if i not in _types:
+                raise NotInDefaultType('pipe.set kwargs:{}:{} must in {}'.format(plus,i,_types))
+        return lambda func: self.__call__(func, **plus)
+
+    def table(self, table):
+        # 简约版的set方法，意义更加清晰一些。
+        return lambda func: self.__call__(func, **{'table':table})
+
+
+
 
     def queue(self, name):
         # 通过名字在 redis 上建立一个简单的queue队列，作为共享使用的队列。
@@ -60,6 +79,9 @@ class Pipe:
         # 开发时，等待A任务关闭时再从A任务收集到数据的管道内获取数据拖下来进行B任务我觉得这样获取会更整洁一些
         # 不过这样有点不好的就是这种是广度优先的任务。以后再看吧。
         pass
+
+
+
 
 pipe = Pipe()
 

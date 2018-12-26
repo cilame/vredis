@@ -127,13 +127,14 @@ def from_pipeline_execute(cls, taskid):
     return ret,rdata
 
 # 单片任务需要传递的就是直接执行的任务名字
-def send_to_pipeline_execute(cls, taskid, function_name, args, kwargs):
+def send_to_pipeline_execute(cls, taskid, function_name, args, kwargs, plus={}):
     _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
     sdata = {
         'taskid': taskid,
         'function': function_name,
         'args': args,
         'kwargs': kwargs,
+        'plus':plus, # 额外配置
     }
     cls.rds.lpush(_rname, json.dumps(sdata))
 
@@ -147,8 +148,8 @@ def send_to_pipeline_execute(cls, taskid, function_name, args, kwargs):
 # 数据收集
 #==========
 # 数据收集的方式
-def from_pipeline_data(cls, taskid, name='default'):
-    _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, name)
+def from_pipeline_data(cls, taskid, table='default'):
+    _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, table)
     try:
         _, ret = cls.rds.brpop(_rname, defaults.VREDIS_DATA_TIMEOUT)
         rdata = json.loads(ret) # ret 必是一个 json 字符串。
@@ -157,7 +158,7 @@ def from_pipeline_data(cls, taskid, name='default'):
     return rdata
 
 # 数据传递需要给一个名字来指定数据的管道，因为可能一次任务中需要收集n种数据。
-def send_to_pipeline_data(cls, taskid, data, ret, name='default', valve=None):
+def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
 
     def mk_sdata(data):
         return json.dumps({'taskid': taskid, 'data': data,})
@@ -181,7 +182,7 @@ def send_to_pipeline_data(cls, taskid, data, ret, name='default', valve=None):
             raise NotInDefaultType('{} not in defaults type:{}.'.format(
                             type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))
 
-    _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, name)
+    _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, table)
     _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, cls.workerid)
 
     with cls.rds.pipeline() as pipe:
