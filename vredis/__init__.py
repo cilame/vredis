@@ -11,7 +11,7 @@ class Pipe:
         self.unstart    = True
         self.settings   = {}
         self.DEBUG      = False
-        self.REALTIME   = True # 这个是后续开发需要实现的功能暂时在这里没用
+        self.KEEPALIVE  = False
         self.LOG_ITEM   = True
 
     def from_settings(self,**settings):
@@ -45,8 +45,11 @@ class Pipe:
                 self.sender     = self.sender if self.sender is not None else Sender()
                 self.tid        = self.sender.send({'command':'script','settings':{'VREDIS_SCRIPT':self.script,
                                                                                    'DEBUG':self.DEBUG,
-                                                                                   'VREDIS_KEEP_LOG_ITEM':self.LOG_ITEM}})
+                                                                                   'VREDIS_KEEP_LOG_ITEM':self.LOG_ITEM,
+                                                                                   'VREDIS_KEEPALIVE':self.KEEPALIVE}})
                 self.unstart    = False
+            if not self.KEEPALIVE:
+                plus.update({'hookcrash':{i['workerid']:i['plus'] for i in self.sender.start_worker.copy()}})
             self.sender.send_execute(self.tid, func.__name__, args, kwargs, plus)
         return _wrapper
 
@@ -66,6 +69,9 @@ class Pipe:
         # 简约版的set方法，意义更加清晰一些。
         return lambda func: self.__call__(func, **{'table':table})
 
+    def from_table(self, table, taskid=None):
+        # 预计的开发在这里需要返回一个类，这个类绑定了简单的数据取出的方法。重载迭代的方法。
+        pass
 
 
 

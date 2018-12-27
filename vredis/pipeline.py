@@ -41,7 +41,7 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
         # 应该判断的是该任务下的所有 worker 是否都处理 idle状态
         # 而不是仅仅只判断本地的状态。具体的 idle 处理看 TaskEnv 类具体实现。
         if valve.VREDIS_CMDLINE is None:
-            while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid, workerid): 
+            while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid, workerid, valve): 
                 time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
             # 这里暂时只考虑了命令行保持链接时挂钩的移除动作
@@ -159,6 +159,7 @@ def from_pipeline_data(cls, taskid, table='default'):
 
 # 数据传递需要给一个名字来指定数据的管道，因为可能一次任务中需要收集n种数据。
 def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
+    if data is None: return
 
     def mk_sdata(data):
         return json.dumps({'taskid': taskid, 'data': data,})
@@ -166,21 +167,20 @@ def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
     its = []
     dt = None
     lg = True if valve is not None and valve.VREDIS_KEEP_LOG_ITEM else False
-    if data is not None:
-        # 最外层返回的数据只要是list，或是tuple，那就迭代取出然后准备传入 redis。
-        if isinstance(data,(types.GeneratorType,list,tuple)):
-            for i in data:
-                # 深层的内容可以不用考虑是否是 list 或 tuple 的向下迭代。只管传进去即可。
-                if isinstance(i,(list,tuple,dict,int,str,float)):
-                    its.append(mk_sdata(i))
-                else:
-                    raise NotInDefaultType('{} not in defaults type:{}.'.format(
-                                    type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))        
-        elif isinstance(data, (dict,int,str,float)):
-            dt = mk_sdata(data)
-        else:
-            raise NotInDefaultType('{} not in defaults type:{}.'.format(
-                            type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))
+    # 最外层返回的数据只要是list，或是tuple，那就迭代取出然后准备传入 redis。
+    if isinstance(data,(types.GeneratorType,list,tuple)):
+        for i in data:
+            # 深层的内容可以不用考虑是否是 list 或 tuple 的向下迭代。只管传进去即可。
+            if isinstance(i,(list,tuple,dict,int,str,float)):
+                its.append(mk_sdata(i))
+            else:
+                raise NotInDefaultType('{} not in defaults type:{}.'.format(
+                                type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))        
+    elif isinstance(data, (dict,int,str,float)):
+        dt = mk_sdata(data)
+    else:
+        raise NotInDefaultType('{} not in defaults type:{}.'.format(
+                        type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))
 
     _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, table)
     _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, cls.workerid)

@@ -64,6 +64,10 @@ VREDIS_LIMIT_LOG_WORKER_NUM = 10
 # 目前如果为 True，将覆盖 VREDIS_KEEP_LOG_CONSOLE 为 True。暂无更多影响。
 DEBUG = True
 
+# 提交任务的方法有两种类型，一种是提交之后就不必保持链接
+VREDIS_KEEPALIVE = True
+VREDIS_HOOKCRASH = None # 考虑到 task 隔离的问题，这里添加了这个参数来对任务空间进行配置。
+
 # 实时回写控制台日志
 # 随机选择一个任务进行实时日志回写，“随机N个”和“指定taskid或指定workerid”互斥。
 # 当指定 taskid 和 workerid 进行过滤输出时，“随机选择N个”的配置就会失效

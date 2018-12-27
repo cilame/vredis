@@ -265,7 +265,7 @@ for __very_unique_item__ in locals():
                 TaskEnv.__taskenv__[taskid]['lock'] -= 1
 
     @staticmethod
-    def idle(rds, taskid, workerid):
+    def idle(rds, taskid, workerid, valve):
         # 看着非常恶心的安全措施代码。
         if taskid in TaskEnv.__taskenv__:
             keyidle = '{}@idle'.format(taskid)  # 当 idle <= current - start 时则给任务返回空闲信号，发送 stop 信号给sender。
@@ -296,10 +296,27 @@ for __very_unique_item__ in locals():
                             pipe.execute()
                         TaskEnv.__taskenv__[taskid]['swap'] = True
 
-                    _curre = rds.hget(defaults.VREDIS_WORKER,keycurr)
-                    _start = rds.hget(defaults.VREDIS_WORKER,keystart)
-                    limit = 0 if _start is None or _curre is None else int(_start) - int(_curre)
-                    return int(rds.hget(defaults.VREDIS_WORKER,keyidle) or 0) <= limit
+                    _curre  = rds.hget(defaults.VREDIS_WORKER,keycurr)
+                    _start  = rds.hget(defaults.VREDIS_WORKER,keystart)
+                    limit   = 0 if _start is None or _curre is None else int(_start) - int(_curre)
+                    toggle  = int(rds.hget(defaults.VREDIS_WORKER,keyidle) or 0) <= limit
+                    if toggle:
+                        if valve.VREDIS_HOOKCRASH is None:
+                            return toggle
+                        else:
+                            n = 0
+                            for workerid in valve.VREDIS_HOOKCRASH:
+                                if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
+                                    toggle = False
+                                    temp = rds.hget(defaults.VREDIS_WORKER,keytkwk) or 0
+                                    n += int(temp)
+                                    # 异常 worker 缓冲区中的内容重新传回目标任务
+                                    _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+                                    _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
+                                    while rds.llen(_cname) != 0:
+                                        rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
+                            rds.hset(defaults.VREDIS_WORKER,keycurr,len(valve.VREDIS_HOOKCRASH) - n) # 这里负数
+                            return toggle
                     # 正常情况下空闲id的数量为0则直接断开连接，但是存在某些 worker 意外断开连接的情况
                     # 当某条 worker 断开的时候，要判断断开时是否进行了 keyidle 增情况，如果存在
                     # 那么就要将判断上限提高1，否则逻辑上走不通，这个地方要与sender进行一定的沟通

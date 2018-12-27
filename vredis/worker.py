@@ -172,24 +172,28 @@ class Worker(common.Initer):
                     func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
                     taskenv     = TaskEnv.get_env_locals(taskid)
 
-                    # 魔法参数，以及为了兼顾魔法的发生而需要的 get_task_locals 函数
-                    # 看着没用实际有用（用于挂钩标准输出流）
-                    __very_unique_function_name__ = None
-                    taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
-                    table = plus.get('table',valve.VREDIS_DATA_DEFAULT_TABLE)
+                    try:
+                        # 魔法参数，以及为了兼顾魔法的发生而需要的 get_task_locals 函数
+                        # 看着没用实际有用（用于挂钩标准输出流）
+                        __very_unique_function_name__ = None
+                        taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
+                        table = plus.get('table',valve.VREDIS_DATA_DEFAULT_TABLE)
 
-                    if check_connect_sender(rds, taskid, order['sender_pubn']):
-                        try:
+                        if valve.VREDIS_KEEPALIVE:
+                            if check_connect_sender(rds, taskid, order['sender_pubn']):
+                                data = eval(func_str, None, taskenv)
+                                send_to_pipeline_data(self,taskid,data,ret,table,valve)
+                        else:
+                            valve.VREDIS_HOOKCRASH = plus.get('hookcrash',None) \
+                                            if valve.VREDIS_HOOKCRASH is None else valve.VREDIS_HOOKCRASH
                             data = eval(func_str, None, taskenv)
                             send_to_pipeline_data(self,taskid,data,ret,table,valve)
-                        except:
-                            # 这里的设计无法抵御网络中断
-                            send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
-                        finally:
-                            TaskEnv.decr(taskid)
-                    else:
+                    except:
+                        # 这里的设计无法抵御网络中断，并且一旦这里也出现异常，那么该线程死亡，后期开发需要解决
+                        send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
+                    finally:
                         TaskEnv.decr(taskid)
-                        continue # 这是为了考虑 redis 的存储量所做的队列清空处理
+
             time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
 
     # 用于将广播的任务信号拖拽下来进行环境配置的线程群
