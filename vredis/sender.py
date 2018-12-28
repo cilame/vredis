@@ -69,6 +69,7 @@ class Sender(common.Initer):
         workerids = [i['workerid']for i in self.start_worker.copy()]
         workeridd = {i['workerid']:i['plus'] for i in self.start_worker.copy()}
         while self.keepalive and not self.taskstop:
+            print(workerids,workeridd)
             stopinfo = from_pipeline(self, self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
                 workerids.remove(stopinfo['workerid'])

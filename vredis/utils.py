@@ -129,7 +129,7 @@ def check_connect_sender(rds, taskid, sender_pubn):
 # 检查链接状态
 def check_connect_worker(rds, workerid, workeridd):
     rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_WORKER, workerid)
-    #print(rds.pubsub_numsub(rname),workeridd)
+    print(rds.pubsub_numsub(rname),workeridd)
     return bool(rds.pubsub_numsub(rname)[0][1] >= workeridd[workerid])
 
 
