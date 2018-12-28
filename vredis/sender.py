@@ -18,7 +18,6 @@ class Sender(common.Initer):
         self.rds             = rds
 
         self.rds.ping() # 确认链接 redis。
-
         self.start_worker   = []
 
     @classmethod
@@ -34,7 +33,8 @@ class Sender(common.Initer):
 
     def process_run(self):
         workernum = len(self.start_worker)
-        while True and workernum:
+        while self.waitstart: time.sleep(.15)
+        while self.keepalive and workernum:
             runinfo = from_pipeline(self, self.taskid, 'run')
             if runinfo and runinfo['piptype'] == 'realtime':
                 print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
@@ -65,10 +65,10 @@ class Sender(common.Initer):
                 if T: t.append('start workerid:{}'.format(info['workerid']))
             print(json.dumps(t, indent=4))
 
-        if self.logstart: log_start()
+        if self.loginfo: log_start()
         workerids = [i['workerid']for i in self.start_worker.copy()]
         workeridd = {i['workerid']:i['plus'] for i in self.start_worker.copy()}
-        while True and not self.taskstop:
+        while self.keepalive and not self.taskstop:
             stopinfo = from_pipeline(self, self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
                 workerids.remove(stopinfo['workerid'])
@@ -82,7 +82,7 @@ class Sender(common.Initer):
                         temp = self.rds.hget(defaults.VREDIS_WORKER,'{}@task{}'.format(self.taskid,workerid)) or 0
                         self.rds.hincrby(defaults.VREDIS_WORKER,'{}@curr'.format(self.taskid),amount= -int(temp)) # 这里负数
 
-                        # 异常 worker 缓冲区中的内容重新传回目标任务
+                        # 异常 worker 缓冲区中的内容重新传回目标任务，并且不只是这里， worker 端也会有同样的处理，不过只是挂钩在任务结束时才会做
                         _rname = '{}:{}'.format(defaults.VREDIS_TASK, self.taskid)
                         _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
                         while self.rds.llen(_cname) != 0:
@@ -109,10 +109,12 @@ class Sender(common.Initer):
             print('none worker receive task.')
 
 
-    def send(self, input_order, logstart=True):
+    def send(self, input_order, loginfo=True, waitstart=False, keepalive=True):
         self.taskstop   = False
-        self.logstop    = False
-        self.logstart   = logstart
+        self.logstop    = False     # 用于在 cmdline 内对命令返回输出结束挂钩
+        self.waitstart  = waitstart # 用于在 脚本装饰器 内对任务发送完毕挂钩。让任务发送完毕再开始接收回传信息
+        self.loginfo    = loginfo
+        self.keepalive  = keepalive
         def wait_connect_pub_sender(self):
             rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, self.taskid)
             self.pub = self.rds.pubsub()
@@ -124,7 +126,7 @@ class Sender(common.Initer):
         # 获取任务id 并广播出去，一个对象维护一个taskid
         self.taskid = self.taskid if hasattr(self,'taskid') else \
             self.rds.hincrby(defaults.VREDIS_SENDER,defaults.VREDIS_SENDER_ID)
-        if defaults.DEBUG: wait_connect_pub_sender(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
+        wait_connect_pub_sender(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
         self.order  = {'taskid':self.taskid, 'order':{**checked_order(input_order),**{'sender_pubn':self.pubn}}}
         self.pubnum = self.rds.publish(defaults.VREDIS_PUBLISH_WORKER, json.dumps(self.order))
         self.rds.hset(defaults.VREDIS_WORKER,'{}@start'.format(self.taskid),self.pubnum)

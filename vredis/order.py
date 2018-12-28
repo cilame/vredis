@@ -36,7 +36,7 @@ def cmdline_command(cls, taskid, workerid, order):
             print(line)
         finally:
             # 存在无限的命令，所以这里需要靠连接状态的挂钩才能断开
-            # 另外，使用下面的挂钩不能解决当执行时存在 y/n 等待的情况
+            # 另外，使用下面的挂钩不能解决当执行时存在 y/n 等待的情况，会无限等待卡死。
             if not check_connect_sender(cls.rds, taskid, order['sender_pubn']):
                 break
     p.stdout.close()

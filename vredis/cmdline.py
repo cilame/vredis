@@ -102,8 +102,8 @@ def deal_with_cmdline(args):
         cmd = input('cmd/ ')
         if cmd.strip():
             sd.send({'command':'cmdline','settings':{'VREDIS_CMDLINE':cmd,
-                                                     #'VREDIS_KEEP_LOG_CONSOLE':True,
-                                                     'VREDIS_FILTER_WORKERID':workerfilter}},logstart=False)
+                                                     'VREDIS_KEEP_LOG_CONSOLE':False,
+                                                     'VREDIS_FILTER_WORKERID':workerfilter}},loginfo=True)
             while not sd.logstop:
                 time.sleep(.15)
 

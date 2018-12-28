@@ -22,6 +22,7 @@ VREDIS_WORKER_ID = 'id'
 VREDIS_TASK = 'vredis:task'
 VREDIS_TASK_CACHE = 'vredis:cache'
 VREDIS_TASK_TIMEOUT = 3
+VREDIS_TASK_MAXRETRY = 3 # 异常发生时，任务重试的次数
 
 # 数据传输的管道名字，和前面的管道一样，都是在运行时加上 taskid 来分割空间
 VREDIS_DATA = 'vredis:data'
@@ -62,7 +63,7 @@ VREDIS_LIMIT_LOG_WORKER_NUM = 10
 
 # 开启 DEBUG 状态会让调试时 worker 监控 VREDIS_PUBLISH_SENDER 的链接状态
 # 目前如果为 True，将覆盖 VREDIS_KEEP_LOG_CONSOLE 为 True。暂无更多影响。
-DEBUG = True
+DEBUG = False
 
 # 提交任务的方法有两种类型，一种是提交之后就不必保持链接
 VREDIS_KEEPALIVE = True

@@ -73,8 +73,7 @@ def unhook_console(stdout=True,stderr=True):
     if stderr: sys.stderr = __org_stderr__#; logging.sys.stderr = __org_stderr__
 
 
-
-
+# 用于挂钩功能的的核心函数
 def find_task_locals_by_thread():
     _taskid_workerid_order_rds_valve_rdm_ = None
     for i in inspect.stack():
@@ -314,7 +313,10 @@ for __very_unique_item__ in locals():
                                     _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
                                     _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
                                     while rds.llen(_cname) != 0:
-                                        rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
+                                        try:
+                                            rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
+                                        except:
+                                            pass
                             rds.hset(defaults.VREDIS_WORKER,keycurr,len(valve.VREDIS_HOOKCRASH) - n) # 这里负数
                             return toggle
                     # 正常情况下空闲id的数量为0则直接断开连接，但是存在某些 worker 意外断开连接的情况
@@ -352,7 +354,7 @@ def checked_order(order):
         if order['command'] == 'list':
             d = dict(
                 VREDIS_KEEP_LOG_CONSOLE         = bool(debug),  # 默认关闭，是否保持工作端的打印输出 
-                VREDIS_FILTER_LOG_RANDOM_N    = False,
+                VREDIS_FILTER_LOG_RANDOM_N      = False,
                 # 默认关闭，如果没有设置过滤的 taskid或 workerid，是否随机选N个回显
                 # 若关闭，且未设置过滤列表（任务id或工作id）则回写全部
                 # defaults 里面也是默认关闭这项的，这项主要是用于单独调试脚本，

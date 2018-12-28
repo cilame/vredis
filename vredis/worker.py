@@ -191,6 +191,19 @@ class Worker(common.Initer):
                     except:
                         # 这里的设计无法抵御网络中断，并且一旦这里也出现异常，那么该线程死亡，后期开发需要解决
                         send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
+
+                        # 任务失败则重试，默认最大重试次数为3
+                        retry = plus.get('retry',0)
+                        rdata['plus'].update({'retry':retry+1})
+                        _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+                        _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, self.workerid)
+                        with self.rds.pipeline() as pipe:
+                            pipe.multi()
+                            if retry < valve.VREDIS_TASK_MAXRETRY:
+                                pipe.rpush(_rname, json.dumps(rdata))
+                            pipe.lrem(_cname, -1, ret)
+                            pipe.execute()
+
                     finally:
                         TaskEnv.decr(taskid)
 
