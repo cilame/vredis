@@ -129,7 +129,7 @@ def check_connect_sender(rds, taskid, sender_pubn):
 # 检查链接状态
 def check_connect_worker(rds, workerid, workeridd):
     rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_WORKER, workerid)
-    print(rds.pubsub_numsub(rname),workeridd)
+    #print(rds.pubsub_numsub(rname),workeridd)
     return bool(rds.pubsub_numsub(rname)[0][1] >= workeridd[workerid])
 
 
@@ -267,8 +267,8 @@ for __very_unique_item__ in locals():
     def idle(rds, taskid, workerid, valve):
         # 看着非常恶心的安全措施代码。
         if taskid in TaskEnv.__taskenv__:
-            keyidle = '{}@idle'.format(taskid)  # 当 idle <= current - start 时则给任务返回空闲信号，发送 stop 信号给sender。
-            keystart= '{}@start'.format(taskid) # 接受该任务的 worker 数量
+            keyidle = '{}@idle'.format(taskid)  # 当 idle == 0 时则给任务返回空闲信号，发送 stop 信号给sender。
+            keystart= '{}@start'.format(taskid) # 目前暂时废弃的一个参数，是计算提交任务的数量的。不过后期很可能还是要废弃。
             keycurr = '{}@curr'.format(taskid)  # 当前该任务的数量
             keytkwk = '{}@task{}'.format(taskid,workerid)
 
@@ -282,11 +282,6 @@ for __very_unique_item__ in locals():
 
             if TaskEnv.__taskenv__[taskid]['start']:
                 if TaskEnv.__taskenv__[taskid]['lock'] == 0:
-                    # 这里想了下面的方法来检查该 taskid 下的所有 worker 的状态来检查是否所有爬虫都在空任务队列和空闲状态。
-                    # 不能仅仅考虑本地是否处于空闲状态就足以判断是否该结束程序。可能逻辑上没更细细去想，这里的处理也不如线程锁那样干劲利落。
-                    # 目前来看是解决了问题的。以后再有问题再考虑了。主要是深夜码代码有点头疼。
-                    # 后来发现了一个问题就是在 worker 端爆炸的时候，没办法确定是否是处于 +1 还是 0 的状态，所以就不好以数字进行判断。
-                    # 所以可能还需要加一个开关来实现这里的问题。
                     if TaskEnv.__taskenv__[taskid]['swap'] == False:
                         with rds.pipeline() as pipe:
                             pipe.multi()
@@ -295,30 +290,32 @@ for __very_unique_item__ in locals():
                             pipe.execute()
                         TaskEnv.__taskenv__[taskid]['swap'] = True
 
-                    _curre  = rds.hget(defaults.VREDIS_WORKER,keycurr)
-                    _start  = rds.hget(defaults.VREDIS_WORKER,keystart)
-                    limit   = 0 if _start is None or _curre is None else int(_start) - int(_curre)
-                    toggle  = int(rds.hget(defaults.VREDIS_WORKER,keyidle) or 0) <= limit
-                    if toggle:
-                        if valve.VREDIS_HOOKCRASH is None:
-                            return toggle
-                        else:
-                            n = 0
-                            for workerid in valve.VREDIS_HOOKCRASH:
-                                if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
-                                    toggle = False
-                                    temp = rds.hget(defaults.VREDIS_WORKER,keytkwk) or 0
-                                    n += int(temp)
-                                    # 异常 worker 缓冲区中的内容重新传回目标任务
-                                    _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
-                                    _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
-                                    while rds.llen(_cname) != 0:
-                                        try:
-                                            rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
-                                        except:
-                                            pass
-                            rds.hset(defaults.VREDIS_WORKER,keycurr,len(valve.VREDIS_HOOKCRASH) - n) # 这里负数
-                            return toggle
+                    n = 0
+                    for workerid in valve.VREDIS_HOOKCRASH:
+                        if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
+                            n += 1
+                            # 换了一种鲁棒性更强的方式来暴力解决问题。柳暗花明。
+                            # check_connect_worker 检查是否还有在连接状态，如果没有，则检查空闲标志位
+                            # 如果空闲标志位等于 1 则代表其缓存空间可能存在数据，需要进行清理
+                            # 如果空闲标志位等于 0 或没设置就代表其缓存空间没有可能存在的数据，所以不需要清理
+                            # 处理方式：
+                            # 1 当空闲标志位等于1时，清理缓存空间，并且将标志位设置为0，并且 keyidle-=1
+                            # 2 当空闲标志位等于0时，证明已经清理过，不用清理
+                            keyclear = '{}@task{}'.format(taskid,workerid)
+                            clstoggle = rds.hget(defaults.VREDIS_WORKER,keyclear) or 0
+                            # 异常 worker 缓冲区中的内容重新传回目标任务
+                            _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+                            _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
+                            while rds.llen(_cname) != 0:
+                                rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
+                            if int(clstoggle) == 1:
+                                with rds.pipeline() as pipe:
+                                    pipe.multi()
+                                    pipe.hincrby(defaults.VREDIS_WORKER,keyidle,amount=-1)
+                                    pipe.hset(defaults.VREDIS_WORKER,keyclear,0)
+                                    pipe.execute()
+                    rds.hset(defaults.VREDIS_WORKER,keycurr,len(valve.VREDIS_HOOKCRASH) - n)
+                    return int(rds.hget(defaults.VREDIS_WORKER,keyidle) or 0) == 0
                     # 正常情况下空闲id的数量为0则直接断开连接，但是存在某些 worker 意外断开连接的情况
                     # 当某条 worker 断开的时候，要判断断开时是否进行了 keyidle 增情况，如果存在
                     # 那么就要将判断上限提高1，否则逻辑上走不通，这个地方要与sender进行一定的沟通

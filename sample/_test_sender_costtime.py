@@ -40,7 +40,7 @@ def some2(i):
     return 333333,444444
 
 for i in range(300):
-    print(i)
+    #print(i)
     some2(i)
     some(i)
 

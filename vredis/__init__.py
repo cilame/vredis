@@ -82,7 +82,7 @@ class Pipe:
                 self.unstart    = False
             if not self.KEEPALIVE:
                 self.timestamp = time.time()
-                plus.update({'hookcrash':{i['workerid']:i['plus'] for i in self.sender.start_worker.copy()}})
+            plus.update({'hookcrash':{i['workerid']:i['plus'] for i in self.sender.start_worker.copy()}})
             self.sender.send_execute(self.tid, func.__name__, args, kwargs, plus)
         return _wrapper
 

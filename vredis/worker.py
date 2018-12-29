@@ -39,9 +39,10 @@ class Worker(common.Initer):
 
         def wait_connect_pub_worker(self):
             rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_WORKER, self.workerid)
+            cursub = self.rds.pubsub_numsub(rname)[0][1]
             self._pub = self.rds.pubsub()
             self._pub.subscribe(rname)
-            while not self.rds.pubsub_numsub(rname)[0][1]:
+            while self.rds.pubsub_numsub(rname)[0][1] == cursub:
                 time.sleep(.15)
             self._pubn = int(self.rds.pubsub_numsub(rname)[0][1]) # 一个源于redis自身的问题，这里不一定是1，所以需要进行传递处理。
 
@@ -178,14 +179,14 @@ class Worker(common.Initer):
                         __very_unique_function_name__ = None
                         taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
                         table = plus.get('table',valve.VREDIS_DATA_DEFAULT_TABLE)
+                        valve.VREDIS_HOOKCRASH = plus.get('hookcrash',None) \
+                            if valve.VREDIS_HOOKCRASH is None else valve.VREDIS_HOOKCRASH
 
                         if valve.VREDIS_KEEPALIVE:
                             if check_connect_sender(rds, taskid, order['sender_pubn']):
                                 data = eval(func_str, None, taskenv)
                                 send_to_pipeline_data(self,taskid,data,ret,table,valve)
                         else:
-                            valve.VREDIS_HOOKCRASH = plus.get('hookcrash',None) \
-                                            if valve.VREDIS_HOOKCRASH is None else valve.VREDIS_HOOKCRASH
                             data = eval(func_str, None, taskenv)
                             send_to_pipeline_data(self,taskid,data,ret,table,valve)
                     except:
@@ -201,6 +202,10 @@ class Worker(common.Initer):
                             pipe.multi()
                             if retry < valve.VREDIS_TASK_MAXRETRY:
                                 pipe.rpush(_rname, json.dumps(rdata))
+                            else:
+                                # 这里可以考虑放入错误任务的队列，作为记录。
+                                # 因为要考虑添加对列表，所有后面会考虑怎么传输，暂时先解决工作任务先。
+                                pass
                             pipe.lrem(_cname, -1, ret)
                             pipe.execute()
 

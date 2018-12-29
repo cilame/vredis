@@ -32,7 +32,7 @@ def req_baidu(key='123',num=0):
     for href in e.xpath('//div[contains(@class,"c-container")]/h3/a/@href'):
         yield {'num':num,'href':href}
 
-for i in range(1000):
+for i in range(300):
     if i%100==0:
         print('send task',i)
     req_baidu(num=i)

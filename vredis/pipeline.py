@@ -42,6 +42,7 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
         # 而不是仅仅只判断本地的状态。具体的 idle 处理看 TaskEnv 类具体实现。
         if valve.VREDIS_CMDLINE is None:
             while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid, workerid, valve): 
+                print('wait',cls.rds.llen(_cname))
                 time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
             # 这里暂时只考虑了命令行保持链接时挂钩的移除动作
