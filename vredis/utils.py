@@ -195,8 +195,7 @@ class TaskEnv:
                                                     'task_local':None,
                                                     'lock':0,
                                                     'start':False,
-                                                    'digest_dead':0,
-                                                    'swap':True,}
+                                                    'digest_dead':0,}
 
     def mk_env_locals(__very_unique_self__, __very_unique_script__):
         if order_filter():
@@ -226,8 +225,7 @@ for __very_unique_item__ in locals():
                                                 'task_local':None,
                                                 'lock':0,
                                                 'start':False,
-                                                'digest_dead':0,
-                                                'swap':True,})
+                                                'digest_dead':0,})
         return temp['env_local']
 
     @staticmethod
@@ -236,8 +234,7 @@ for __very_unique_item__ in locals():
                                                 'task_local':None,
                                                 'lock':0,
                                                 'start':False,
-                                                'digest_dead':0,
-                                                'swap':True,})
+                                                'digest_dead':0,})
         return temp['task_local']
 
     @staticmethod
@@ -250,35 +247,40 @@ for __very_unique_item__ in locals():
         TaskEnv.__taskenv__ = {}
 
     @staticmethod
-    def incr(taskid):
+    def incr(rds, taskid, workerid):
         if taskid in TaskEnv.__taskenv__:
             with common.Initer.lock:
+                _nlock = '{}@lock{}'.format(taskid, workerid)
+                rds.hincrby(defaults.VREDIS_WORKER, _nlock, amount=1)
                 TaskEnv.__taskenv__[taskid]['lock'] += 1
                 if not TaskEnv.__taskenv__[taskid]['start']:
                     TaskEnv.__taskenv__[taskid]['start'] = True
 
     @staticmethod
-    def decr(taskid):
+    def decr(rds, taskid, workerid):
         if taskid in TaskEnv.__taskenv__:
             with common.Initer.lock:
+                _nlock = '{}@lock{}'.format(taskid, workerid)
+                rds.hincrby(defaults.VREDIS_WORKER, _nlock, amount=-1)
                 TaskEnv.__taskenv__[taskid]['lock'] -= 1
 
     @staticmethod
     def idle(rds, taskid, workerid, valve):
         # 看着非常恶心的安全措施代码。
         if taskid in TaskEnv.__taskenv__:
+            _cache = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
 
             if TaskEnv.__taskenv__[taskid]['start'] == False:
                 TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
                 if TaskEnv.__taskenv__[taskid]['digest_dead'] > 5:
                     # 连续超过 5 次idle判断都未启动则代表线程可能处于卡死状态，自动销毁
                     # 不过这种的处理场景不多(例如一个任务n个线程跑)
-                    print('disconnect task:{}, worker:{}.'.format(taskid,workerid))
+                    #print('disconnect task:{}, worker:{}.'.format(taskid,workerid))
                     return True 
 
             if TaskEnv.__taskenv__[taskid]['start']:
                 if TaskEnv.__taskenv__[taskid]['lock'] == 0:
-                    n = 0
+                    n, m = 0, 0
                     for workerid in valve.VREDIS_HOOKCRASH:
                         if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
                             # 换了一种更加鲁棒的方式来暴力解决问题。
@@ -288,7 +290,11 @@ for __very_unique_item__ in locals():
                             while rds.llen(_cname) != 0:
                                 n += 1
                                 rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
-                    return n == 0
+                        else:
+                            _nlock = '{}@lock{}'.format(taskid, workerid)
+                            m += int(rds.hget(defaults.VREDIS_WORKER, _nlock) or 0)
+                    print('aaaaaaaaaaaa',m,n,rds.llen(_cache))
+                    return (n == 0) and (m == 0) and (rds.llen(_cache) == 0)
 
 
 
