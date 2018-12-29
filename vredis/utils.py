@@ -267,10 +267,6 @@ for __very_unique_item__ in locals():
     def idle(rds, taskid, workerid, valve):
         # 看着非常恶心的安全措施代码。
         if taskid in TaskEnv.__taskenv__:
-            keyidle = '{}@idle'.format(taskid)  # 当 idle == 0 时则给任务返回空闲信号，发送 stop 信号给sender。
-            keystart= '{}@start'.format(taskid) # 目前暂时废弃的一个参数，是计算提交任务的数量的。不过后期很可能还是要废弃。
-            keycurr = '{}@curr'.format(taskid)  # 当前该任务的数量
-            keytkwk = '{}@task{}'.format(taskid,workerid)
 
             if TaskEnv.__taskenv__[taskid]['start'] == False:
                 TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
@@ -282,54 +278,17 @@ for __very_unique_item__ in locals():
 
             if TaskEnv.__taskenv__[taskid]['start']:
                 if TaskEnv.__taskenv__[taskid]['lock'] == 0:
-                    if TaskEnv.__taskenv__[taskid]['swap'] == False:
-                        with rds.pipeline() as pipe:
-                            pipe.multi()
-                            pipe.hincrby(defaults.VREDIS_WORKER,keyidle,amount=-1)
-                            pipe.hset(defaults.VREDIS_WORKER,keytkwk,0)
-                            pipe.execute()
-                        TaskEnv.__taskenv__[taskid]['swap'] = True
-
                     n = 0
                     for workerid in valve.VREDIS_HOOKCRASH:
                         if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
-                            n += 1
-                            # 换了一种鲁棒性更强的方式来暴力解决问题。柳暗花明。
-                            # check_connect_worker 检查是否还有在连接状态，如果没有，则检查空闲标志位
-                            # 如果空闲标志位等于 1 则代表其缓存空间可能存在数据，需要进行清理
-                            # 如果空闲标志位等于 0 或没设置就代表其缓存空间没有可能存在的数据，所以不需要清理
-                            # 处理方式：
-                            # 1 当空闲标志位等于1时，清理缓存空间，并且将标志位设置为0，并且 keyidle-=1
-                            # 2 当空闲标志位等于0时，证明已经清理过，不用清理
-                            keyclear = '{}@task{}'.format(taskid,workerid)
-                            clstoggle = rds.hget(defaults.VREDIS_WORKER,keyclear) or 0
+                            # 换了一种更加鲁棒的方式来暴力解决问题。
                             # 异常 worker 缓冲区中的内容重新传回目标任务
                             _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
                             _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
                             while rds.llen(_cname) != 0:
+                                n += 1
                                 rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
-                            if int(clstoggle) == 1:
-                                with rds.pipeline() as pipe:
-                                    pipe.multi()
-                                    pipe.hincrby(defaults.VREDIS_WORKER,keyidle,amount=-1)
-                                    pipe.hset(defaults.VREDIS_WORKER,keyclear,0)
-                                    pipe.execute()
-                    rds.hset(defaults.VREDIS_WORKER,keycurr,len(valve.VREDIS_HOOKCRASH) - n)
-                    return int(rds.hget(defaults.VREDIS_WORKER,keyidle) or 0) == 0
-                    # 正常情况下空闲id的数量为0则直接断开连接，但是存在某些 worker 意外断开连接的情况
-                    # 当某条 worker 断开的时候，要判断断开时是否进行了 keyidle 增情况，如果存在
-                    # 那么就要将判断上限提高1，否则逻辑上走不通，这个地方要与sender进行一定的沟通
-                    # 从代码上看上比较复杂。想说的就是，一切都是为了更加安全。
-                else:
-                    if TaskEnv.__taskenv__[taskid]['swap'] == True:
-                        with rds.pipeline() as pipe:
-                            pipe.multi()
-                            pipe.hincrby(defaults.VREDIS_WORKER,keyidle,amount=1)
-                            pipe.hset(defaults.VREDIS_WORKER,keytkwk,1)
-                            pipe.execute()
-                        TaskEnv.__taskenv__[taskid]['swap'] = False
-
-        return False
+                    return n == 0
 
 
 

@@ -19,7 +19,6 @@ class Sender(common.Initer):
 
         self.rds.ping() # 确认链接 redis。
         self.start_worker   = []
-        self.crash_worker   = 0
 
     @classmethod
     def from_settings(cls,**kw):
@@ -70,30 +69,25 @@ class Sender(common.Initer):
         workerids = [i['workerid']for i in self.start_worker.copy()]
         workeridd = {i['workerid']:i['plus'] for i in self.start_worker.copy()}
         while self.keepalive and not self.taskstop:
-            print(workerids,workeridd)
             stopinfo = from_pipeline(self, self.taskid, 'stop')
             if stopinfo and 'taskid' in stopinfo:
                 workerids.remove(stopinfo['workerid'])
             elif not workerids:
                 self.taskstop = True
             else:
-                t = False
                 for workerid in workerids:
                     if not check_connect_worker(self.rds, workerid, workeridd):
-                        print('unknown crash error stop workerid:{}'.format(workerid))
                         t = True
-                        temp = self.rds.hget(defaults.VREDIS_WORKER,'{}@task{}'.format(self.taskid,workerid)) or 0
-                        if int(temp) == 1:
-                            # 异常 worker 缓冲区中的内容重新传回目标任务，并且不只是这里， worker 端也会有同样的处理，不过只是挂钩在任务结束时才会做
-                            _rname = '{}:{}'.format(defaults.VREDIS_TASK, self.taskid)
-                            _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
-                            while self.rds.llen(_cname) != 0:
-                                self.rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
-                            self.rds.hset(defaults.VREDIS_WORKER,'{}@task{}'.format(self.taskid,workerid),0)
-                        else:
-                            self.crash_worker += 1
+                        # 异常 worker 缓冲区中的内容重新传回目标任务，并且不只是这里， worker 端也会有同样的处理，
+                        # 不过在 worker 里面的处理因为防止信号爆炸的关系，只是挂钩在任务结束时才会进行清理。
+                        _rname = '{}:{}'.format(defaults.VREDIS_TASK, self.taskid)
+                        _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
+                        while self.rds.llen(_cname) != 0:
+                            t = False
+                            self.rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
+                        if t: 
+                            print('unknown crash error stop workerid:{}'.format(workerid))
                             workerids.remove(workerid)
-                if t: self.rds.hset(defaults.VREDIS_WORKER,'{}@curr'.format(self.taskid),len(workeridd) - self.crash_worker)
 
 
     # 通过一个队列来接受状态回写
@@ -136,8 +130,6 @@ class Sender(common.Initer):
         wait_connect_pub_sender(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
         self.order  = {'taskid':self.taskid, 'order':{**checked_order(input_order),**{'sender_pubn':self.pubn}}}
         self.pubnum = self.rds.publish(defaults.VREDIS_PUBLISH_WORKER, json.dumps(self.order))
-        self.rds.hset(defaults.VREDIS_WORKER,'{}@start'.format(self.taskid),self.pubnum)
-        self.rds.hset(defaults.VREDIS_WORKER,'{}@curr'.format(self.taskid),self.pubnum)
         self.send_status()
         return self.taskid
 
