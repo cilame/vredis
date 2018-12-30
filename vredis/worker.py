@@ -59,9 +59,8 @@ class Worker(common.Initer):
         hook_console()
         wait_connect_pub_worker(self) # 开启任务前需要等待自连接广播打开，用于任意形式工作端断开能被发送任务端检测到
 
-        self._thread_num    = 0 # 用以计算当前使用的 pull_task 线程数量，在挂钩停止任务时判断是否 “不使用线程池”
+        self._thread_num    = 0 # 用以计算当前使用的线程数量，目前还用不到。
         self._settings      = getattr(self, '_settings', {})
-        print(self._settings)
 
     @classmethod
     def from_settings(cls, **kw):
@@ -125,7 +124,7 @@ class Worker(common.Initer):
                     self.rds = super(Worker, self).redis_from_settings(**self._settings)
                 _start()
             except:
-                idx += 1
+                __org_stdout__.write('unconnect, retry time:{}\n'.format(idx))
                 time.sleep(1)
                 continue
 
@@ -177,10 +176,10 @@ class Worker(common.Initer):
         while True:
             for etask in list(TaskEnv.__taskenv__):
                 # 为了安全的实现 worker 的缓冲任务能够在crash后分派给别的任务，这里替换成新的处理方式
-                ret,rdata = from_pipeline_execute(self, etask)
+                ret, rdata = from_pipeline_execute(self, etask)
                 if rdata:
                     taskid      = rdata['taskid']
-                    func_name   = rdata['function'] # 抽取传递过来的函数名字
+                    func_name   = rdata['function']
                     args        = rdata['args']
                     kwargs      = rdata['kwargs']
                     plus        = rdata['plus']
@@ -212,7 +211,7 @@ class Worker(common.Initer):
                             # 网络异常中断点的问题可能存在一些奇怪问题，目前暴力异常捕捉即可。
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
                         except:
-                            pass
+                            __org_stdout__.write(traceback.format_exc())
 
                         # 任务失败则重试，默认最大重试次数为3
                         retry = plus.get('retry',0)
@@ -221,7 +220,7 @@ class Worker(common.Initer):
                         _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, self.workerid)
                         with self.rds.pipeline() as pipe:
                             pipe.multi()
-                            if retry < valve.VREDIS_TASK_MAXRETRY:
+                            if retry < defaults.VREDIS_TASK_MAXRETRY:
                                 pipe.rpush(_rname, json.dumps(rdata))
                             else:
                                 # 这里可以考虑放入错误任务的队列，作为记录。

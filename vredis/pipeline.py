@@ -45,9 +45,6 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
             while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid, workerid, valve):
                 time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
-            if not valve.VREDIS_KEEPALIVE:
-                # 当任务为提交模式的话，在任务关闭状态还需等待N秒清理任务空间，尽多一点可能防止异常。
-                time.sleep(defaults.VREDIS_DELAY_CLEAR)
             while cls.rds.llen(_cache) != 0:
                 if valve.VREDIS_CMDLINE is None:
                     valve.delete(taskid)
