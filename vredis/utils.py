@@ -132,8 +132,10 @@ def check_connect_worker(rds, workerid, workeridd):
     #print(rds.pubsub_numsub(rname),workeridd)
     return bool(rds.pubsub_numsub(rname)[0][1] >= workeridd[workerid])
 
-
-
+# # 检查某 worker的某任务的执行状态是否停止
+# def check_stop_worker(rds, taskid, workerid):
+#     rname = '{}@stop{}'.format(taskid, workerid)
+#     return rds.hincrby(defaults.VREDIS_WORKER, rname)
 
 
 
@@ -248,27 +250,29 @@ for __very_unique_item__ in locals():
 
     @staticmethod
     def incr(rds, taskid, workerid):
-        if taskid in TaskEnv.__taskenv__:
-            with common.Initer.lock:
-                _nlock = '{}@lock{}'.format(taskid, workerid)
-                rds.hincrby(defaults.VREDIS_WORKER, _nlock, amount=1)
+        with common.Initer.lock:
+            if taskid in TaskEnv.__taskenv__:
                 TaskEnv.__taskenv__[taskid]['lock'] += 1
                 if not TaskEnv.__taskenv__[taskid]['start']:
                     TaskEnv.__taskenv__[taskid]['start'] = True
+            _nlock = '{}@lock{}'.format(taskid, workerid)
+            v = rds.hincrby(defaults.VREDIS_WORKER, _nlock, amount=1)
+            #__org_stdout__.write('{}::{}\n'.format(v, TaskEnv.__taskenv__[taskid].get('lock')))
 
     @staticmethod
     def decr(rds, taskid, workerid):
-        if taskid in TaskEnv.__taskenv__:
-            with common.Initer.lock:
-                _nlock = '{}@lock{}'.format(taskid, workerid)
-                rds.hincrby(defaults.VREDIS_WORKER, _nlock, amount=-1)
+        with common.Initer.lock:
+            if taskid in TaskEnv.__taskenv__:
                 TaskEnv.__taskenv__[taskid]['lock'] -= 1
+            _nlock = '{}@lock{}'.format(taskid, workerid)
+            v = rds.hincrby(defaults.VREDIS_WORKER, _nlock, amount=-1)
+            #__org_stdout__.write('{}::{}\n'.format(v, TaskEnv.__taskenv__[taskid].get('lock')))
 
     @staticmethod
     def idle(rds, taskid, workerid, valve):
         # 看着非常恶心的安全措施代码。
         if taskid in TaskEnv.__taskenv__:
-            _cache = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
+            _cache = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
 
             if TaskEnv.__taskenv__[taskid]['start'] == False:
                 TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
@@ -286,15 +290,25 @@ for __very_unique_item__ in locals():
                             # 换了一种更加鲁棒的方式来暴力解决问题。
                             # 异常 worker 缓冲区中的内容重新传回目标任务
                             _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
-                            _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
+                            _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
                             while rds.llen(_cname) != 0:
                                 n += 1
                                 rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
                         else:
                             _nlock = '{}@lock{}'.format(taskid, workerid)
                             m += int(rds.hget(defaults.VREDIS_WORKER, _nlock) or 0)
-                    print('aaaaaaaaaaaa',m,n,rds.llen(_cache))
-                    return (n == 0) and (m == 0) and (rds.llen(_cache) == 0)
+                    toggle = n == 0 and m == 0
+                    if toggle:
+                        if rds.llen(_cache) == 0:
+                            return toggle
+                        else:
+                            # 最后的异常处理，因为不可控的网络问题可能存在缓冲区在最后都没有自我清空的话
+                            # 那么最后就由自身进行对任务的清空处理
+                            _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+                            while rds.llen(_cname) != 0:
+                                rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
+
+
 
 
 

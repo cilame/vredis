@@ -81,7 +81,7 @@ class Sender(common.Initer):
                         # 异常 worker 缓冲区中的内容重新传回目标任务，并且不只是这里， worker 端也会有同样的处理，
                         # 不过在 worker 里面的处理因为防止信号爆炸的关系，只是挂钩在任务结束时才会进行清理。
                         _rname = '{}:{}'.format(defaults.VREDIS_TASK, self.taskid)
-                        _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, workerid)
+                        _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, self.taskid, workerid)
                         while self.rds.llen(_cname) != 0:
                             t = False
                             self.rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)

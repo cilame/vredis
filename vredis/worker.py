@@ -163,14 +163,13 @@ class Worker(common.Initer):
                 # 为了安全的实现 worker 的缓冲任务能够在crash后分派给别的任务，这里替换成新的处理方式
                 ret,rdata = from_pipeline_execute(self, etask)
                 if rdata:
+                    taskid      = rdata['taskid']
+                    func_name   = rdata['function'] # 抽取传递过来的函数名字
+                    args        = rdata['args']
+                    kwargs      = rdata['kwargs']
+                    plus        = rdata['plus']
+                    TaskEnv.incr(self.rds, taskid, self.workerid)
                     try:
-                        taskid      = rdata['taskid']
-                        func_name   = rdata['function'] # 抽取传递过来的函数名字
-                        args        = rdata['args']
-                        kwargs      = rdata['kwargs']
-                        plus        = rdata['plus']
-                        TaskEnv.incr(self.rds, taskid, self.workerid)
-
                         func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
                         taskenv     = TaskEnv.get_env_locals(taskid)
                         # 魔法参数，以及为了兼顾魔法的发生而需要的 get_task_locals 函数
@@ -191,23 +190,27 @@ class Worker(common.Initer):
                     except:
                         # 这里的设计无法抵御网络中断，并且一旦这里也出现异常，那么该线程死亡，后期开发需要解决
                         # 这里的判断是因为要考虑到在前面的步骤中环境已经被消灭的情况。
-                        if 'workerid' in locals():
+                        try:
+                            # 这里的任务会用到任务配置的空间，所以需要考虑暴力处理异常。
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
-                            # 任务失败则重试，默认最大重试次数为3
-                            retry = plus.get('retry',0)
-                            rdata['plus'].update({'retry':retry+1})
-                            _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
-                            _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, self.workerid)
-                            with self.rds.pipeline() as pipe:
-                                pipe.multi()
-                                if retry < valve.VREDIS_TASK_MAXRETRY:
-                                    pipe.rpush(_rname, json.dumps(rdata))
-                                else:
-                                    # 这里可以考虑放入错误任务的队列，作为记录。
-                                    # 因为要考虑添加对列表，所有后面会考虑怎么传输，暂时先解决工作任务先。
-                                    pass
-                                pipe.lrem(_cname, -1, ret)
-                                pipe.execute()
+                        except:
+                            pass
+
+                        # 任务失败则重试，默认最大重试次数为3
+                        retry = plus.get('retry',0)
+                        rdata['plus'].update({'retry':retry+1})
+                        _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+                        _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, self.workerid)
+                        with self.rds.pipeline() as pipe:
+                            pipe.multi()
+                            if retry < valve.VREDIS_TASK_MAXRETRY:
+                                pipe.rpush(_rname, json.dumps(rdata))
+                            else:
+                                # 这里可以考虑放入错误任务的队列，作为记录。
+                                # 因为要考虑添加对列表，所有后面会考虑怎么传输，暂时先解决工作任务先。
+                                pass
+                            pipe.lrem(_cname, -1, ret)
+                            pipe.execute()
                     finally:
                         TaskEnv.decr(self.rds, taskid, self.workerid)
 

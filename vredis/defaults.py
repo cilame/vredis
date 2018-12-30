@@ -68,6 +68,7 @@ DEBUG = False
 # 提交任务的方法有两种类型，一种是提交之后就不必保持链接
 VREDIS_KEEPALIVE = True
 VREDIS_HOOKCRASH = None # 考虑到 task 隔离的问题，这里添加了这个参数来对任务空间进行配置。
+VREDIS_DELAY_CLEAR = 5
 
 # 实时回写控制台日志
 # 随机选择一个任务进行实时日志回写，“随机N个”和“指定taskid或指定workerid”互斥。

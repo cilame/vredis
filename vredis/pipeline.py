@@ -37,6 +37,7 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
     if piptype =='stop':
         # 这里的停止需要考虑在消化队列为空的情况下才执行关闭
         _cname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+        _cache = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
         valve,TaskEnv = plus
         # 应该判断的是该任务下的所有 worker 是否都处理 idle状态
         # 而不是仅仅只判断本地的状态。具体的 idle 处理看 TaskEnv 类具体实现。
@@ -44,12 +45,15 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
             while cls.rds.llen(_cname) or not TaskEnv.idle(cls.rds, taskid, workerid, valve):
                 time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         try:
-            # 这里暂时只考虑了命令行保持链接时挂钩的移除动作
-            # 后续还需要考虑怎么提交式的任务，提交后就不管的那种
-            if valve.VREDIS_CMDLINE is None:
-                valve.delete(taskid)
-            TaskEnv.delete(taskid)
-            cls.tasklist.remove(taskid)
+            if not valve.VREDIS_KEEPALIVE:
+                # 当任务为提交模式的话，在任务关闭状态还需等待N秒清理任务空间，尽多一点可能防止异常。
+                time.sleep(defaults.VREDIS_DELAY_CLEAR)
+            while cls.rds.llen(_cache) != 0:
+                if valve.VREDIS_CMDLINE is None:
+                    valve.delete(taskid)
+                TaskEnv.delete(taskid)
+                cls.tasklist.remove(taskid)
+                time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         except:
             pass
         _rname = '{}:{}'.format(defaults.VREDIS_SENDER_STOP, taskid)
@@ -117,7 +121,7 @@ def send_to_pipeline_real_time(taskid,workerid,order,rds,msg):
 # 单片的任务指令的传递，这种只能用管道来实现才不会起执行的冲突
 def from_pipeline_execute(cls, taskid):
     _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
-    _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, cls.workerid)
+    _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, cls.workerid)
     try:
         # 通过 brpoplpush 这样的原子操作在 redis 上面制造缓冲空间，让意外断开连接不会影响任务的执行
         ret = cls.rds.brpoplpush(_rname, _cname, defaults.VREDIS_TASK_TIMEOUT)
@@ -183,7 +187,7 @@ def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
                         type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))
 
     _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, table)
-    _cname = '{}:{}'.format(defaults.VREDIS_TASK_CACHE, cls.workerid)
+    _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, cls.workerid)
 
     with cls.rds.pipeline() as pipe:
         pipe.multi()
