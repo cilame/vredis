@@ -305,8 +305,8 @@ for __very_unique_item__ in locals():
                             # 最后的异常处理，因为不可控的网络问题可能存在缓冲区在最后都没有自我清空的话
                             # 那么最后就由自身进行对任务的清空处理
                             _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
-                            while rds.llen(_cname) != 0:
-                                rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
+                            while rds.llen(_cache) != 0:
+                                rds.brpoplpush(_cache, _rname, defaults.VREDIS_TASK_TIMEOUT)
 
 
 

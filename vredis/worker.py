@@ -12,6 +12,7 @@ from . import defaults
 from . import common
 from .utils import (
     hook_console, 
+    __org_stdout__, 
     _stdout, 
     _stderr,
     check_connect_sender, 
@@ -49,12 +50,8 @@ class Worker(common.Initer):
         self.rds            = rds
         self.rds.ping()
 
-        self.lock           = RLock()
-        self.pub            = self.rds.pubsub()
-        self.pub.subscribe(defaults.VREDIS_PUBLISH_WORKER)
-
         self.pull_task      = queue.Queue()
-        self.cmdline_task   = queue.Queue() # 暂未用到
+        self.cmdline_task   = queue.Queue()
         self.workerid       = self.rds.hincrby(defaults.VREDIS_WORKER, defaults.VREDIS_WORKER_ID)\
                                 if workerid is None else workerid
 
@@ -63,9 +60,12 @@ class Worker(common.Initer):
         wait_connect_pub_worker(self) # 开启任务前需要等待自连接广播打开，用于任意形式工作端断开能被发送任务端检测到
 
         self._thread_num    = 0 # 用以计算当前使用的 pull_task 线程数量，在挂钩停止任务时判断是否 “不使用线程池”
+        self._settings      = getattr(self, '_settings', {})
+        print(self._settings)
 
     @classmethod
     def from_settings(cls, **kw):
+        cls._settings = kw
         rds = cls.redis_from_settings(**kw)
         d = dict(
             workerid = None
@@ -99,19 +99,35 @@ class Worker(common.Initer):
 
 
     def process_order(self):
-        print('open worker id:',self.workerid)
-        for i in self.pub.listen(): # 这里的设计无法抵御网络中断
-            # 过滤订阅信息
-            if i['type'] == 'subscribe': continue
-            order       = json.loads(i['data'])
-            workerid    = self.workerid
-            taskid      = order['taskid']
-            order       = order['order']
-            pull_looper = self.connect_work_queue(self.pull_task,   taskid,workerid,order)
-            cmdl_looper = self.connect_work_queue(self.cmdline_task,taskid,workerid,order) # 暂未用到
+        def _start():
+            print('open worker id:',self.workerid)
+            self.pub = self.rds.pubsub()
+            self.pub.subscribe(defaults.VREDIS_PUBLISH_WORKER)
+            for i in self.pub.listen():
+                # 过滤订阅信息
+                if i['type'] == 'subscribe': continue
+                order       = json.loads(i['data'])
+                workerid    = self.workerid
+                taskid      = order['taskid']
+                order       = order['order']
+                pull_looper = self.connect_work_queue(self.pull_task,   taskid,workerid,order)
+                cmdl_looper = self.connect_work_queue(self.cmdline_task,taskid,workerid,order) # 暂未用到
 
-            if   order['command'] == 'cmdline': cmdl_looper(cmdline_command)(self,taskid,workerid,order)
-            elif order['command'] == 'script':  pull_looper(script_command) (self,taskid,workerid,order)
+                if   order['command'] == 'cmdline': cmdl_looper(cmdline_command)(self,taskid,workerid,order)
+                elif order['command'] == 'script':  pull_looper(script_command) (self,taskid,workerid,order)
+        idx = 0
+        # 暴力解决网络中断问题
+        while True:
+            try:
+                try:
+                    self.rds.ping()
+                except:
+                    self.rds = super(Worker, self).redis_from_settings(**self._settings)
+                _start()
+            except:
+                idx += 1
+                time.sleep(1)
+                continue
 
     def _thread(self,_queue):
         while True:
@@ -184,14 +200,16 @@ class Worker(common.Initer):
                             if check_connect_sender(rds, taskid, order['sender_pubn']):
                                 data = eval(func_str, None, taskenv)
                                 send_to_pipeline_data(self,taskid,data,ret,table,valve)
+                            else:
+                                _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
+                                self.rds.lrem(_cname, 1, ret)
                         else:
                             data = eval(func_str, None, taskenv)
                             send_to_pipeline_data(self,taskid,data,ret,table,valve)
                     except:
-                        # 这里的设计无法抵御网络中断，并且一旦这里也出现异常，那么该线程死亡，后期开发需要解决
-                        # 这里的判断是因为要考虑到在前面的步骤中环境已经被消灭的情况。
                         try:
                             # 这里的任务会用到任务配置的空间，所以需要考虑暴力处理异常。
+                            # 网络异常中断点的问题可能存在一些奇怪问题，目前暴力异常捕捉即可。
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
                         except:
                             pass
