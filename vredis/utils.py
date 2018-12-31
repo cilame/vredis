@@ -285,6 +285,7 @@ for __very_unique_item__ in locals():
         # 看着非常恶心的安全措施代码。
         if taskid in TaskEnv.__taskenv__:
             _cstop = '{}@stop{}'.format(taskid, workerid)
+            _llock = '{}@lock{}'.format(taskid, workerid)
             _cache = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
 
             if TaskEnv.__taskenv__[taskid]['start'] == False:
@@ -296,7 +297,8 @@ for __very_unique_item__ in locals():
                     return True 
 
             if TaskEnv.__taskenv__[taskid]['start']:
-                if TaskEnv.__taskenv__[taskid]['lock'] == 0:
+                llock = int(rds.hget(defaults.VREDIS_WORKER, _llock) or 0) # 这应该是最后最后的抗灾回收处理了。
+                if TaskEnv.__taskenv__[taskid]['lock'] == 0 or llock == 0:
                     m, n = 0, 0
                     for workerid in valve.VREDIS_HOOKCRASH:
                         if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
