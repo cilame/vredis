@@ -1,5 +1,6 @@
 import inspect
 import time
+import json
 from threading import Thread
 
 
@@ -10,20 +11,38 @@ from .error import SenderAlreadyStarted,NotInDefaultType
 
 
 
-
-
-
-
-
-
 class _Table:
-    def __init__(taskid, table, method):
+    def __init__(self, sender, taskid, table, method, ignore_stop=False):
+        self.sender = sender
         self.taskid = taskid
         self.table  = table
         self.method = method
+        self.ignore_stop = ignore_stop
 
     def __iter__(self):
-        pass
+        if self.ignore_stop:
+            v = self.sender.get_stat(self.taskid)
+            if v is None:
+                print('no stat taskid:{}.'.format(self.taskid))
+                raise 'cannot get stat.'
+            close = True
+            for key,value in v.items():
+                if key != 'all':
+                    if value.get('stop',0) == 0:
+                        close = False
+            if not close:
+                raise 'unstop task.'
+        table = '{}:{}:{}'.format(defaults.VREDIS_DATA, self.taskid, self.table)
+        lens = self.sender.rds.llen(table)
+        if lens == 0:
+            print('no data. tablename: "{}".'.format(table))
+        if self.method == 'pop':
+            for _ in range(lens):
+                _, ret = self.sender.rds.brpop(table, defaults.VREDIS_DATA_TIMEOUT)
+                yield json.loads(ret)
+        elif self.method == 'range':
+            for ret in self.sender.rds.lrange(table,0,lens):
+                yield json.loads(ret)
 
 
 class Pipe:
@@ -109,10 +128,13 @@ class Pipe:
         # 简约版的set方法，意义更加清晰一些。
         return lambda func: self.__call__(func, **{'table':table})
 
-    def from_table(self, taskid=None, table=defaults.VREDIS_DATA_DEFAULT_TABLE, method='pop'):
+    def from_table(self, taskid, table=defaults.VREDIS_DATA_DEFAULT_TABLE, method='range'):
         # 预计的开发在这里需要返回一个类，这个类绑定了简单的数据取出的方法。重载迭代的方法。
         assert method in ['pop', 'range']
-        pass
+        if self.sender is None:
+            raise 'unconnect redis, pls use pipe.conncet(...) before this function'
+        self.sender = self.sender if self.sender is not None else Sender()
+        return _Table(self.sender, taskid, table, method)
 
 
 
@@ -128,9 +150,11 @@ class Pipe:
         pass
 
     def get_stat(self, taskid):
+        if self.sender is None:
+            raise 'unconnect redis, pls use pipe.conncet(...) before this function'
         v = self.sender.get_stat(taskid)
         if v is None:
-            print('no state.')
+            print('no stat taskid:{}.'.format(taskid))
         else:
             for i in v.items():
                 print(i)
@@ -153,5 +177,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
+__version__ = '0.9.0'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'

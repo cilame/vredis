@@ -56,7 +56,6 @@ class stdhooker:
     def flush(self):
         self.__org_func__.flush()
 
-    # 防止字典键存放 key（taskid）数量过高，每次 stop 锁住检查一次是否全部爬虫停止，若停止，执行该函数
     def _clear_cache(self,taskid):
         if taskid in self.cache:
             self.cache.pop(taskid)
@@ -148,7 +147,7 @@ def check_connect_worker(rds, workerid, workeridd):
 # 2 管道传输的规范化
 
 # Valve 类用于管理默认设定下的阀门
-# 通过 taskid,workerid 实例化后可以当作一个局部的 defaults 设定来使用，没有设定的都用默认设定
+# 通过 taskid 实例化后可以当作一个局部的 defaults 设定来使用，没有设定的都用默认设定
 class Valve:
     class NoneObject: pass
     # 需要全局处理的开关村都存放在这里
@@ -292,7 +291,7 @@ for __very_unique_item__ in locals():
                 TaskEnv.__taskenv__[taskid]['digest_dead'] += 1
                 if TaskEnv.__taskenv__[taskid]['digest_dead'] > 5:
                     # 连续超过 5 次idle判断都未启动则代表线程可能处于卡死状态，自动销毁
-                    # 不过这种的处理场景不多(例如一个任务n个线程跑)
+                    # 不过这种的处理场景不多(例如一个任务n个线程跑，总会有n-1个线程空跑，所以需要处理)
                     #print('disconnect task:{}, worker:{}.'.format(taskid,workerid))
                     return True 
 
@@ -302,8 +301,6 @@ for __very_unique_item__ in locals():
                     m, n = 0, 0
                     for workerid in valve.VREDIS_HOOKCRASH:
                         if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
-                            # 换了一种更加鲁棒的方式来暴力解决问题。
-                            # 异常 worker 缓冲区中的内容重新传回目标任务
                             _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
                             _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
                             while rds.llen(_cname) != 0:

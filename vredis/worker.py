@@ -59,7 +59,7 @@ class Worker(common.Initer):
         hook_console()
         wait_connect_pub_worker(self) # 开启任务前需要等待自连接广播打开，用于任意形式工作端断开能被发送任务端检测到
 
-        self._thread_num    = 0 # 用以计算当前使用的线程数量，目前还用不到。
+        self._thread_num    = 0 # 用以计算当前使用的线程数量，同一时间 pull_task 线程过高会有警告。
         self._settings      = getattr(self, '_settings', {})
 
     @classmethod
@@ -124,6 +124,7 @@ class Worker(common.Initer):
                     self.rds = super(Worker, self).redis_from_settings(**self._settings)
                 _start()
             except:
+                idx += 1
                 __org_stdout__.write('unconnect, retry time:{}\n'.format(idx))
                 time.sleep(1)
                 continue

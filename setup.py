@@ -3,13 +3,16 @@ import sys
   
 setup(  
     name="vredis",
-    version="0.0.0",
+    version="0.9.0",
     author="cilame",
     author_email="opaquism@hotmail.com",
     description="Distributed script crawler framework.",
     entry_points={
         'console_scripts': ['vredis = vredis.cmdline:execute']
     },
+    install_requires=[
+        'redis',
+    ],
     long_description=r"""
 Distributed script crawler framework.
 =====================================
