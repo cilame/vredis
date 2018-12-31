@@ -32,6 +32,7 @@ from vredis import pipe
 # 如果什么都不写，甚至不写 pipe.connect(...) 这一行，
 # 那么就会默认在 “开始执行任务” 后再连接 localhost:6379 无密码，db=0.
 # 不过一般来说都是需要自己主动连接一个特有的 redis 服务器。
+
 pipe.connect(host='47.99.126.229',port=6379,password='vilame')
 #pipe.DEBUG = True # worker端是否进行控制台打印。我个人开发时会打开，一般没必要。
 # 一个 pipe 实例在 “开始执行任务” 后会从 redis 服务器上拿到一个唯一 taskid。
@@ -42,7 +43,7 @@ pipe.connect(host='47.99.126.229',port=6379,password='vilame')
 
 
 
-# 接口的设计：极低的代码入侵，不加装饰器甚至完全无障碍执行
+# 接口的设计：极低的代码入侵，不加装饰器甚至几乎无障碍执行
 @pipe
 def some(i):
     # 不过写脚本的时候，尽量将需要引入的库写在函数内部。就这点要求。
