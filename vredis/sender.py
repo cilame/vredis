@@ -149,15 +149,21 @@ class Sender(common.Initer):
             collection = 0
             execute = 0
             fail = 0
+            rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
             for workerid in workeridd:
-                alive = check_connect_worker(self.rds, workerid, workeridd)
-                temp = self.rds.hscan('{}:{}:{}'.format(defaults.VREDIS_TASK_STATE, taskid, workerid))
-                t = {'alive': alive}
-                for key,value in temp[1].items():
-                    t[key.decode()] = int(value)
-                collection  += t.get('collection',0)
-                execute     += t.get('execute',0)
-                fail        += t.get('fail',0)
+                _name = '{}:{}:{}'.format(defaults.VREDIS_TASK_STATE, taskid, workerid)
+                t = {}
+                _collection  = int(self.rds.hget(_name, 'collection') or 0)
+                _execute     = int(self.rds.hget(_name, 'execute') or 0)
+                _fail        = int(self.rds.hget(_name, 'fail') or 0)
+                _stop        = int(self.rds.hget(_name, 'stop') or 0)
+                t['collection']  = _collection
+                t['execute']     = _execute
+                t['fail']        = _fail
+                t['stop']        = _stop
                 d[workerid] = t
-            d['all'] = {'collection':collection,'execute':execute,'fail':fail}
+                collection  +=  _collection
+                execute     +=  _execute
+                fail        +=  _fail
+            d['all'] = {'collection':collection,'execute':execute,'fail':fail,'tasknum':self.rds.llen(rname)}
             return d

@@ -16,11 +16,13 @@ Distributed script crawler framework.
 
 .. code-block:: python
 
-    # Simply connecting redis on the worker side of the library provides an executable power for distributed scripts
+    # Simply connecting redis on the worker side of the library provides an-
+    # executable power for distributed scripts
     # All function executions on the sender end will be piped to redis, 
     # and the worker end will be pulled out of the pipe to execute.
     # Support multi-task simultaneous execution! Each execution maintains a taskid, 
-    # and different tasks maintain their configuration space according to the taskid when they are executed simultaneously.
+    # and different tasks maintain their configuration space according to the-
+    # taskid when they are executed simultaneously.
 
 worker
 ======
@@ -28,20 +30,29 @@ worker
 .. code-block:: python
 
     import vredis
-    s = vredis.Worker.from_settings(host='xx.xx.xx.xx',port=6379,password='vilame')
+    s = vredis.Worker.from_settings(host='xx.xx.xx.xx',port=6666,password='vilame')
     s.start()
+
+    # bash
+    C:\Users\Administrator>vredis worker -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0
+    # if not set param. use defaults param.
+    # default host localhost
+    # default port 6379
+    # default password None
+    # default db 0
 
 sender
 ======
 
 .. code-block:: python
 
-from vredis import pipe
+    from vredis import pipe
 
-    pipe.connect(host='xx.xx.xx.xx',port=6379,password='vilame')
+    pipe.connect(host='xx.xx.xx.xx',port=6666,password='vilame')
     pipe.DEBUG = True # True/False. worker prints on the worker_console.
 
-    # Very low code intrusion, no decorator or even complete barrier-free execution
+    # very low code intrusion, no decorator or even complete barrier-free execution
+    # The decorated function becomes a send function and is sent to the task pipeline
     @pipe
     def some(i):
         import time, random
@@ -54,7 +65,7 @@ from vredis import pipe
         print('use func2:{}'.format(i))
 
     for i in range(100):
-        some(i) # The decorated function becomes a send function and is sent to the redis pipeline
+        some(i)
         some2(i)
 
 """,
