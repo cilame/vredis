@@ -33,6 +33,8 @@ from vredis import pipe
 # 那么就会默认在 “开始执行任务” 后再连接 localhost:6379 无密码，db=0.
 # 不过一般来说都是需要自己主动连接一个特有的 redis 服务器。
 
+
+
 pipe.connect(host='47.99.126.229',port=6379,password='vilame')
 
 #pipe.DEBUG = True # worker端是否进行控制台打印。我个人开发时会打开，一般没必要。
@@ -72,7 +74,6 @@ for i in range(100):
 
 
 
-
 # 提交任务模式：
 # 对于一些人来说只想把任务提交上去就等待任务执行，不需要挂钩发送端是否存活，
 # 那么这也很简单，只需要关闭保持连接的标记即可，这样发送端就不会回显，
@@ -90,7 +91,7 @@ for i in pipe.from_table(taskid=29):
 
 # 任务不结束不能抽取数据，会出异常
 # from_table 的第二个参数就可以传入 table 的名字，也就是存储的命名空间
-# 默认是以 method='lrange' 方式提取数据，取完数据后，数据还是会占用 redis 的存储空间。
+# 默认是以 method='range' 方式提取数据，取完数据后，数据还是会占用 redis 的存储空间。
 # 所以如果确定只提取这一次，不想消耗存储空间，那么可以在 from_table 里面设置 method='pop' 即可。
 ```
 
