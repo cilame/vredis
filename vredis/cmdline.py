@@ -92,7 +92,7 @@ def deal_with_cmdline(args):
         if cmd.strip():
             sd.send({'command':'cmdline','settings':{'VREDIS_CMDLINE':cmd,
                                                      'VREDIS_KEEP_LOG_CONSOLE':False,
-                                                     'VREDIS_FILTER_WORKERID':workerfilter}},loginfo=True)
+                                                     'VREDIS_FILTER_WORKERID':workerfilter}},loginfo=False)
             while not sd.logstop:
                 time.sleep(.15)
 
