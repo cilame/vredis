@@ -19,8 +19,10 @@ VREDIS_WORKER_ID = 'id'
 
 
 # 广播的任务的处理和队列任务的处理不一样。需要考虑怎么解决问题。
-VREDIS_TASK = 'vredis:task'
-VREDIS_TASK_CACHE = 'vredis:cache'
+VREDIS_TASK = 'vredis:sender:task'
+VREDIS_TASK_CACHE = 'vredis:sender:cache'
+VREDIS_TASK_STATE = 'vredis:sender:state'
+VREDIS_TASK_ERROR = 'vredis:sender:error'
 VREDIS_TASK_TIMEOUT = 3
 VREDIS_TASK_MAXRETRY = 3 # 异常发生时，任务重试的次数
 

@@ -127,6 +127,13 @@ class Pipe:
         # 不过这样有点不好的就是这种是广度优先的任务。以后再看吧。
         pass
 
+    def get_stat(self, taskid):
+        v = self.sender.get_stat(taskid)
+        if v is None:
+            print('no state.')
+        else:
+            for i in v.items():
+                print(i)
 
 
 

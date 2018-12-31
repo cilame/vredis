@@ -139,3 +139,25 @@ class Sender(common.Initer):
     def send_execute(self, taskid, function_name, args, kwargs, plus):
         if self.start_worker:
             send_to_pipeline_execute(self, taskid, function_name, args, kwargs, plus)
+
+
+    def get_stat(self, taskid):
+        workeridd = self.rds.hget(defaults.VREDIS_SENDER, '{}@hookcrash'.format(taskid))
+        if workeridd is not None:
+            workeridd = json.loads(workeridd)
+            d = {}
+            collection = 0
+            execute = 0
+            fail = 0
+            for workerid in workeridd:
+                alive = check_connect_worker(self.rds, workerid, workeridd)
+                temp = self.rds.hscan('{}:{}:{}'.format(defaults.VREDIS_TASK_STATE, taskid, workerid))
+                t = {'alive': alive}
+                for key,value in temp[1].items():
+                    t[key.decode()] = int(value)
+                collection  += t.get('collection',0)
+                execute     += t.get('execute',0)
+                fail        += t.get('fail',0)
+                d[workerid] = t
+            d['all'] = {'collection':collection,'execute':execute,'fail':fail}
+            return d

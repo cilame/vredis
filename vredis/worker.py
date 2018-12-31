@@ -187,6 +187,7 @@ class Worker(common.Initer):
                     try:
                         func_str    = '{}(*{},**{})'.format(func_name,args,kwargs)
                         taskenv     = TaskEnv.get_env_locals(taskid)
+
                         # 魔法参数，以及为了兼顾魔法的发生而需要的 get_task_locals 函数
                         # 看着没用实际有用（用于挂钩标准输出流）
                         __very_unique_function_name__ = None
@@ -215,23 +216,29 @@ class Worker(common.Initer):
                             # 网络异常中断点的问题可能存在一些奇怪问题，目前暴力异常捕捉即可。
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
                         except:
-                            __org_stdout__.write(traceback.format_exc())
-
-                        # 任务失败则重试，默认最大重试次数为3
-                        retry = plus.get('retry',0)
-                        rdata['plus'].update({'retry':retry+1})
-                        _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
-                        _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, self.workerid)
-                        with self.rds.pipeline() as pipe:
-                            pipe.multi()
-                            if retry < defaults.VREDIS_TASK_MAXRETRY:
-                                pipe.rpush(_rname, json.dumps(rdata))
-                            else:
-                                # 这里可以考虑放入错误任务的队列，作为记录。
-                                # 因为要考虑添加对列表，所有后面会考虑怎么传输，暂时先解决工作任务先。
-                                pass
-                            pipe.lrem(_cname, -1, ret)
-                            pipe.execute()
+                            with common.Initer.lock:
+                                __org_stdout__.write(traceback.format_exc())
+                        try:
+                            # 任务失败则重试，默认最大重试次数为3
+                            retry = plus.get('retry',0)
+                            rdata['plus'].update({'retry':retry+1})
+                            _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+                            _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, self.workerid)
+                            with self.rds.pipeline() as pipe:
+                                pipe.multi()
+                                if retry < defaults.VREDIS_TASK_MAXRETRY:
+                                    pipe.rpush(_rname, json.dumps(rdata))
+                                else:
+                                    # 计入错误统计信息中，推入持久错误任务管道便于查看。
+                                    _ename = '{}:{}'.format(defaults.VREDIS_TASK_ERROR, taskid)
+                                    _sname_c = '{}:{}:{}'.format(defaults.VREDIS_TASK_STATE, taskid, self.workerid)
+                                    self.rds.hincrby(_sname_c,'fail',1)
+                                    self.rds.lpush(_ename, ret)
+                                pipe.lrem(_cname, -1, ret)
+                                pipe.execute()
+                        except:
+                            # 防止异常破坏线程。
+                            pass
                     finally:
                         TaskEnv.decr(self.rds, taskid, self.workerid)
 

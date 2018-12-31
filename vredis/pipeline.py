@@ -53,6 +53,8 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
                 time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
         except:
             pass
+        _sname_c = '{}:{}:{}'.format(defaults.VREDIS_TASK_STATE, taskid, workerid)
+        cls.rds.hincrby(_sname_c,'stop',1) # 写入停止标记
         _rname = '{}:{}'.format(defaults.VREDIS_SENDER_STOP, taskid)
         # print('stop')
     rdata = {
@@ -185,14 +187,18 @@ def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
 
     _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, table)
     _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, cls.workerid)
-
+    n = 0
     with cls.rds.pipeline() as pipe:
         pipe.multi()
         for it in its:
-            pipe.lpush(_rname, it)
+            pipe.lpush(_rname, it); n += 1
             if lg: print(it)
         if dt is not None:
-            pipe.lpush(_rname, dt)
+            pipe.lpush(_rname, dt); n += 1
             if lg: print(dt)
         pipe.lrem(_cname, -1, ret)
         pipe.execute()
+
+    _sname_c = '{}:{}:{}'.format(defaults.VREDIS_TASK_STATE, taskid, cls.workerid)
+    cls.rds.hincrby(_sname_c,'collection',n)
+    cls.rds.hincrby(_sname_c,'execute',1)

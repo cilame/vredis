@@ -331,7 +331,7 @@ for __very_unique_item__ in locals():
                             _nlock = '{}@lock{}'.format(taskid, workerid)
                             while rds.llen(_cname) != 0:
                                 rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
-                            rds.hincrby(defaults.VREDIS_WORKER, _nlock, 0)
+                            rds.hset(defaults.VREDIS_WORKER, _nlock, 0)
                         
 
 
