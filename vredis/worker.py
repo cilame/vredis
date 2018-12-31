@@ -192,8 +192,12 @@ class Worker(common.Initer):
                         __very_unique_function_name__ = None
                         taskid,workerid,order,rds,valve,rdm = TaskEnv.get_task_locals(taskid)
                         table = plus.get('table',valve.VREDIS_DATA_DEFAULT_TABLE)
-                        valve.VREDIS_HOOKCRASH = plus.get('hookcrash',None) \
-                            if valve.VREDIS_HOOKCRASH is None else valve.VREDIS_HOOKCRASH
+
+                        if valve.VREDIS_HOOKCRASH is None:
+                            # 修改了 hookcrash 传递的方式，现在会更好一点。
+                            # 也不会浪费传输资源了。
+                            hookcrash = self.rds.hget(defaults.VREDIS_SENDER, '{}@hookcrash'.format(taskid))
+                            valve.VREDIS_HOOKCRASH = json.loads(hookcrash)
 
                         if valve.VREDIS_KEEPALIVE:
                             if check_connect_sender(rds, taskid, order['sender_pubn']):

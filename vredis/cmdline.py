@@ -16,9 +16,6 @@ usage
   vredis <command> [options] [args]
 
 command
-  list      show worker info.
-  run       run.
-  attach    attach.
   cmdline   use cmdline connect host.
   worker    start a worker.
   <command> -h|--help   ::show subcommand info
@@ -28,19 +25,12 @@ defaults
   -po,--port            ::redis port.                       default: 6379
   -pa,--password        ::redis password.                   default: None
   -db,--db              ::redis db.                         default: 0
-  -n,-wn,--workermaxnum ::worker max numb, esay for use.    default: all
-  -w,-wf,--workerfilter ::[separated by ','] worker filter  default: all
+  -wf,--workerfilter    ::[separated by ','] worker filter  default: all
 
 [cmd info.]
-  vredis                ::show default info
-  vredis -h             ::show default info
-  vredis --help         ::show all info
-'''
-
-list_description = '''
-  list                  ::[eg.] "vredis list --stat"
-    --stat
-    --collection
+  "vredis"                ::show default info
+  "vredis -h"             ::show default info
+  "vredis --help"         ::show all info
 '''
 
 cmdline_description = '''
@@ -49,7 +39,7 @@ cmdline_description = '''
 '''
 
 worker_description = '''
-  worker                ::[eg.] "vredis worker -ho 192.168.0.77 -po 6666 -pa vilame"
+  worker                ::[eg.] "vredis worker --host 192.168.0.77 --port 6666 --password vilame"
     all parameters of this command depend on default parameters
     cmd: "vredis worker"   
                         ::worker use defaults parameters connect redis server
@@ -64,8 +54,7 @@ worker_description = '''
 
 
 h_description = re.sub('\{\}','',description).strip()
-help_description = description.format(''.join([list_description,
-                                               cmdline_description,
+help_description = description.format(''.join([cmdline_description,
                                                worker_description])).strip()
 
 
@@ -113,8 +102,7 @@ def test_deal(args):
     password    = args.password
     db          = int(args.db)
     workerfilter= args.workerfilter
-    workermaxnum= args.workermaxnum
-    print(host,port,password,db,workerfilter,workermaxnum)
+    print(host,port,password,db,workerfilter)
 
 def execute(argv=None):
     if argv is None: argv = sys.argv
@@ -130,8 +118,7 @@ def execute(argv=None):
     parse.add_argument('-po','--port',              default=6379,                   help=argparse.SUPPRESS)
     parse.add_argument('-pa','--password',          default=None,                   help=argparse.SUPPRESS)
     parse.add_argument('-db','--db',                default=0,                      help=argparse.SUPPRESS)
-    parse.add_argument('-w','-wf','--workerfilter', default='all',                  help=argparse.SUPPRESS) # w和n互斥
-    parse.add_argument('-n','-wn','--workermaxnum', default='all',                  help=argparse.SUPPRESS)
+    parse.add_argument('-wf','--workerfilter',      default='all',                  help=argparse.SUPPRESS)
 
     _print_help(argv)
 

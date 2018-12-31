@@ -102,6 +102,8 @@ class Sender(common.Initer):
                     # 在 start 阶段如果 msg 内有数据的话，那么就是开启时出现了错误。进行开始阶段的错误回写即可。
                     print(worker['msg'])
         self.start_worker = start_worker
+        hookcrash = {i['workerid']:i['plus'] for i in self.start_worker.copy()}
+        self.rds.hset(defaults.VREDIS_SENDER, '{}@hookcrash'.format(self.taskid), json.dumps(hookcrash))
         if self.start_worker:
             self.start() # 开启debug状态将额外开启两个线程作为输出日志的同步
         else:
