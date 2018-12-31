@@ -34,6 +34,7 @@ from vredis import pipe
 # 不过一般来说都是需要自己主动连接一个特有的 redis 服务器。
 
 pipe.connect(host='47.99.126.229',port=6379,password='vilame')
+
 #pipe.DEBUG = True # worker端是否进行控制台打印。我个人开发时会打开，一般没必要。
 # 一个 pipe 实例在 “开始执行任务” 后会从 redis 服务器上拿到一个唯一 taskid。
 # 这样，不同的人的 pipe 实例维护的都是不同的 taskid，便于多人使用。
