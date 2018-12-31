@@ -10,7 +10,7 @@ setup(
     entry_points={
         'console_scripts': ['vredis = vredis.cmdline:execute']
     },
-    long_description="""
+    long_description=r"""
 Distributed script crawler framework.
 =====================================
 
