@@ -17,7 +17,7 @@ usage
 
 command
   stat      use taskid check task work stat.
-  cmdline   use cmdline connect host.
+  cmdline   use cmdline connect host. and sent simple bash command.
   worker    start a worker.
   <command> -h|--help   ::show subcommand info
 {}
@@ -27,9 +27,9 @@ defaults
   -pa,--password        ::redis password.                   default: None
   -db,--db              ::redis db.                         default: 0
   -wf,--workerfilter    ::[separated by ','] worker filter  default: all
-                        ||this parameter can only work in cmdLine mode
+                        ||this parameter can only work in cmdLine mode.
   -ta,--taskid          ::check task work stat              default: None
-                        ||this parameter can only work in stat mode
+                        ||this parameter can only work in stat mode.
 
 [cmd info.]
   "vredis"                ::show default info
@@ -39,12 +39,20 @@ defaults
 
 cmdline_description = '''
   cmdline               ::[eg.] "vredis cmdline -wf 3,6,9"
-    -wf --workerfilter  ||this parameter can only work in cmdLine mode
+    -wf --workerfilter  ||this parameter can only work in cmdline mode.
+                        ||use "cmdline" you can enter a cmd/ mode,
+                        ||you can send simple cmd command to execute.
+                        ::cmd/ pip install requests
+                        ||easy for such as "pip install ..." command.
+                        ::cmd/ ls
+                        ||if you only wanna check how many worker start
+                        ||just in cmd/ mode, enter "ls" or "list" command.
 '''
 
 stat_description = '''
   stat                  ::[eg.] "vredis stat -ta 26"
     -ta --taskid        ||this parameter can only work in stat mode
+                        ||this command does not consume taskid
 '''
 
 worker_description = '''
@@ -87,7 +95,7 @@ def deal_with_worker(args):
     port        = int(args.port)
     password    = args.password
     db          = int(args.db)
-    print('[ REDIS-SERVER ] host:{},port:{}'.format(host,port))
+    print('[ REDIS-SERVER ] host:{}, port:{}'.format(host,port))
     wk = Worker.from_settings(host=host,port=port,password=password,db=db)
     wk.start()
 
@@ -102,7 +110,7 @@ def deal_with_stat(args):
         print('[eg.] "vredis stat -ta 23"')
         return
     taskid      = int(args.taskid)
-    print('[ REDIS-SERVER ] host:{},port:{}'.format(host,port))
+    print('[ REDIS-SERVER ] host:{}, port:{}'.format(host,port))
     sd = Sender.from_settings(host=host,port=port,password=password,db=db)
     dt = sd.get_stat(taskid)
     if dt is None:
@@ -141,7 +149,7 @@ def deal_with_cmdline(args):
     password    = args.password
     db          = int(args.db)
     workerfilter= list(map(int,args.workerfilter.split(','))) if args.workerfilter!='all' else None
-    print('[ REDIS-SERVER ] host:{},port:{}'.format(host,port))
+    print('[ REDIS-SERVER ] host:{}, port:{}'.format(host,port))
     sd = Sender.from_settings(host=host,port=port,password=password,db=db)
     while True:
         cmd = input('cmd/ ')
