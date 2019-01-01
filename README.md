@@ -50,20 +50,26 @@ from vredis import pipe
 pipe.connect(host='47.99.126.229',port=6379,password='vilame')
 
 #pipe.DEBUG = True # worker端是否进行控制台打印。我个人开发时会打开，一般没必要。
+#  因为只是数据不在 worker 端打印，原本会打印的那些数据还是会回传到 sender 端。
 #  一个 pipe 实例在 “开始执行任务” 后会从 redis 服务器上拿到一个唯一 taskid。
 #  这样，不同的人执行脚本时 pipe 实例维护的都是不同的 taskid。这样设计多人使用才不会冲突。
 #pipe.KEEPALIVE = False （实时回显的开关，默认True，关闭则变成提交任务模式）
 #  实时回显的模式下，如果脚本关闭，则任务 worker 端就会中断相应的 taskid 任务。
 #  开发时 KEEPALIVE=True 的默认模式是最方便调试、也是最不容易浪费资源的一种方式。
+#  提交模式后面会有说到。
 
 
 
 # 接口的设计：只需要仅仅以 pipe 实例作为装饰器即可。极低的代码入侵，不加装饰器甚至几乎无障碍执行
+# 被装饰的函数代码会被序列化传到每个 “发送任务时” 接收到的 worker 端上并重新构筑成函数，
+# 同时接收到任务的 worker 端也会针对该次任务请求的 taskid 分配执行资源
+# 装饰时只生成函数的序列化数据，等待第一次执行函数（传入任务）时会连接 worker 并获取唯一 taskid
+# 然后开始传输任务。
 @pipe
 def some(i):
     # 不过写脚本的时候，尽量将需要引入的库写在函数内部。就这点要求。
     # 如果分布式的机器没有该库，需要通过 pip 进行下载，
-    # 那么你也可以通过命令行工具 vredis 直接传输 pip 下载的命令行指令过去下载。
+    # 那么你也可以通过命令行工具 vredis cmdline 直接传输 pip 下载的命令行指令过去下载。
     # 详细可见后面的说明
     import time, random 
     time.sleep(random.randint(1,2))
@@ -90,8 +96,8 @@ def some2(i):
 
 
 
-# 就按照一般的函数使用方式就可以将 函数，函数的参数 传入redis任务管道
-# 到时候会有 接收到任务的 worker 对任务进行接收并执行。
+# 就按照一般的函数使用方式就可以将 函数名字，函数的参数 传入redis任务管道
+# 到时候会有 接收到任务的 worker 对相应的任务进行接收并执行。
 for i in range(100):
     some(i) # 被装饰的函数变成发送函数，发送到 redis 管道
     some2(i)
@@ -99,7 +105,7 @@ for i in range(100):
 
 
 # 提交任务模式：
-# 对于一些人来说只想把任务提交上去就等待任务执行，不需要挂钩发送端是否存活，
+# 对于一些人来说只想把任务提交上去就等待任务执行，不需要挂钩发送端是否存活，想让任务发送完就让脚本停止。
 # 那么这也很简单，只需要关闭保持连接的标记即可（pipe.KEEPALIVE = False，这里的代码要在函数发送前配置），
 # 这样发送端就不会回显。不过，如果函数内部有 print 函数虽然不会回显，
 # 但是还是会消耗部分资源让 print 的输出和错误信息传入日志管道，
@@ -114,7 +120,7 @@ pipe.connect(host='47.99.126.229',port=6379,password='vilame')
 for i in pipe.from_table(taskid=29):
     print(i)
 
-# 任务不结束不能抽取数据，会出异常
+# 任务不结束不能抽取数据，会出直接抛出异常
 # from_table 的第二个参数就可以传入 table 的名字，也就是存储的命名空间
 # 默认是以 method='range' 方式提取数据，取完数据后，数据还是会占用 redis 的存储空间。
 # 所以如果确定只提取这一次，不想消耗存储空间，那么可以在 from_table 里面设置 method='pop' 即可。
@@ -128,7 +134,7 @@ C:\Users\Administrator>vredis --help
 # 直接输入 --help 就已经能看全部的详细文档，也不必详述。不过，这里主要想说的是
 # 对于一些简单的命令行操作，可以通过 cmdline 指令连接上之后就能直接输入命令行指令让远端机器执行
 # 通过连接可以得到一个非常简陋的类 bash 的指令传输区，在 cmd/ 后面直接输入指令就能传递执行
-# 主要用来 pip 安装一些远端没有的库函数。
+# 主要用来 pip 安装一些远端没有的库函数。目前请勿传输会中途需要卡住 bash的指令，例如任意会弹出 y/n 的指令。
 
 PS C:\Users\Administrator\Desktop\vredis> vredis cmdline -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0
 [ use CTRL+PAUSE to break ]
@@ -138,6 +144,8 @@ cmd/
 - ##### 如何检查你的任务情况
 
 ```bash
+# 因为 --help 文档里面已经写的很详细了，所以这里就给一个简单的指令模板以及其执行的结果作为参考。
+# vredis stat 指令必须要添加 -ta,--taskid 参数来指定需要检查的任务id。
 C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta 23
 [ REDIS-SERVER ] host:47.99.126.229, port:6379
    taskid  collect  execute     fail     stop
@@ -155,14 +163,16 @@ C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta
    ------   ------   ------   ------   ------
         -  collect  execute     fail  unstart
       all     3218      300        0        0
-# 因为 --help 文档里面已经写的很详细了，所以这里就给一个简单的指令模板以及其执行的结果作为参考。
-# stat 指令必须要添加 -ta,--taskid 参数来指定需要检查的任务id。
+# collect 代表收集的数量
+# execute 代表执行的函数数量
+# fail 代表错误函数数量（异常超过3次）
+# unstart 代表还未被取走的任务数量
 ```
 
 - ##### 一些优势
 
 ```
-1 方便的开启，简约的脚本使用方式，以及更加快捷的部署
+1 方便的开启，简约的脚本使用方式，以及更加友好的部署
     只需要用该库的命令行指令连接上 redis，就能为分布式脚本提供一个可执行的算力。
     装饰器接口可以让开发者自由的从本机与分布式来回切换。
     部署上不是传统的 sender -> master -> worker 模式开发，
@@ -175,7 +185,7 @@ C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta
     面对一些仍在测试的中却提交了一个非常大数量的任务，也可以方便的断开重调，在不影响其他任务的情况下节约资源。
     任务如果出现异常，则会重跑。但如果重跑超过 3 次便会将任务放入错误任务收集区。保证更好的调试。
 3 支持多任务，多人开发，任务安全
-    支持多任务同时执行！每次执行都会维护一个 taskid。让不同的任务同时执行时会根据 taskid 维护他们的配置空间。
+    支持多任务同时执行！每次脚本执行都会维护一个 taskid。让不同的任务同时执行时会根据 taskid 维护他们的配置空间。
     也就是说，你只要让别人下载该库然后用上面的示例连接上这个 redis，就能用他们的计算机作为你的分布式资源的一部分。
     并且，考虑到 worker 端可能意外断开的情况，所以设计了任务缓冲区进行对任务完整性的保护。
 4 简单的日志信息
