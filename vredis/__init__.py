@@ -20,7 +20,7 @@ class _Table:
         self.ignore_stop = ignore_stop
 
     def __iter__(self):
-        if self.ignore_stop:
+        if not self.ignore_stop:
             v = self.sender.get_stat(self.taskid)
             if v is None:
                 print('no stat taskid:{}.'.format(self.taskid))
@@ -31,7 +31,11 @@ class _Table:
                     if value.get('stop',0) == 0:
                         close = False
             if not close:
-                raise 'unstop task.'
+                raise 'unstop task.' 
+                # 目前对非停止的任务进行数据抽取的话是会直接抛出异常的。
+                # 因为目前开发是通过检查 redis 管道的长度来一次性抽取数据的，
+                # 如果忽略任务停止的部分直接抽取可能就只能抽一部分。
+                # 因为考虑到两种取数据的模式，pop模式会影响下标，所以默认未关闭暴力抛异常。
         table = '{}:{}:{}'.format(defaults.VREDIS_DATA, self.taskid, self.table)
         lens = self.sender.rds.llen(table)
         if lens == 0:
@@ -118,6 +122,8 @@ class Pipe:
     def set(self, **plus):
         # 这里的 plus 主要是由 worker 端的需求进行的需求处理，这里暂时就不多设定了
         # 不过为了约束执行初期的异常，这里暂时需要一个临时的验证。
+        # 后期拓展接口的开发，不过现在来说，直接使用 table 函数是个更加简便的方式。
+        # 目前只有配置存储空间的函数。
         _types = ['table']
         for i in plus:
             if i not in _types:
@@ -125,23 +131,17 @@ class Pipe:
         return lambda func: self.__call__(func, **plus)
 
     def table(self, table):
-        # 简约版的set方法，意义更加清晰一些。
+        # 简约版的配置方法，后期为了对某些功能连锁，可能会改。
         return lambda func: self.__call__(func, **{'table':table})
 
     def from_table(self, taskid, table=defaults.VREDIS_DATA_DEFAULT_TABLE, method='range'):
         # 预计的开发在这里需要返回一个类，这个类绑定了简单的数据取出的方法。重载迭代的方法。
         assert method in ['pop', 'range']
         if self.sender is None:
-            raise 'unconnect redis, pls use pipe.conncet(...) before this function'
+            print('[ WAINING ]: use localhost redis .')
         self.sender = self.sender if self.sender is not None else Sender()
         return _Table(self.sender, taskid, table, method)
 
-
-
-    def queue(self, name):
-        # 通过名字在 redis 上建立一个简单的queue队列，作为共享使用的队列。
-        # 暂时觉得这里的实现方式不够 非侵入式，这种类型实在有点不爽
-        pass
 
     def task_is_stop(self, taskid):
         # 分段处理时可以考虑发送多次任务。
@@ -151,7 +151,8 @@ class Pipe:
 
     def get_stat(self, taskid):
         if self.sender is None:
-            raise 'unconnect redis, pls use pipe.conncet(...) before this function'
+            print('[ WAINING ]: use localhost redis .')
+        self.sender = self.sender if self.sender is not None else Sender()
         v = self.sender.get_stat(taskid)
         if v is None:
             print('no stat taskid:{}.'.format(taskid))

@@ -16,6 +16,7 @@ usage
   vredis <command> [options] [args]
 
 command
+  stat      use taskid check task work stat.
   cmdline   use cmdline connect host.
   worker    start a worker.
   <command> -h|--help   ::show subcommand info
@@ -26,6 +27,9 @@ defaults
   -pa,--password        ::redis password.                   default: None
   -db,--db              ::redis db.                         default: 0
   -wf,--workerfilter    ::[separated by ','] worker filter  default: all
+                        ||this parameter can only work in cmdLine mode
+  -ta,--taskid          ::check task work stat              default: None
+                        ||this parameter can only work in stat mode
 
 [cmd info.]
   "vredis"                ::show default info
@@ -35,12 +39,18 @@ defaults
 
 cmdline_description = '''
   cmdline               ::[eg.] "vredis cmdline -wf 3,6,9"
-    -wf --workerfilter
+    -wf --workerfilter  ||this parameter can only work in cmdLine mode
+'''
+
+stat_description = '''
+  stat                  ::[eg.] "vredis stat -ta 26"
+    -ta --taskid        ||this parameter can only work in stat mode
 '''
 
 worker_description = '''
   worker                ::[eg.] "vredis worker --host 192.168.0.77 --port 6666 --password vilame"
-    all parameters of this command depend on default parameters
+                        ||open a worker waiting task
+                        ||all parameters of this command depend on default parameters
     cmd: "vredis worker"   
                         ::worker use defaults parameters connect redis server
                         ||worker use host localhost
@@ -55,6 +65,7 @@ worker_description = '''
 
 h_description = re.sub('\{\}','',description).strip()
 help_description = description.format(''.join([cmdline_description,
+                                               stat_description,
                                                worker_description])).strip()
 
 
@@ -76,8 +87,26 @@ def deal_with_worker(args):
     port        = int(args.port)
     password    = args.password
     db          = int(args.db)
+    print('[ REDIS-SERVER ] host:{},port:{}'.format(host,port))
     wk = Worker.from_settings(host=host,port=port,password=password,db=db)
     wk.start()
+
+
+def deal_with_worker(args):
+    host        = args.host
+    port        = int(args.port)
+    password    = args.password
+    db          = int(args.db)
+    taskid      = int(args.taskid)
+    print('[ REDIS-SERVER ] host:{},port:{}'.format(host,port))
+    sd = Sender.from_settings(host=host,port=port,password=password,db=db)
+    dt = sd.get_stat(taskid)
+    if dt is None:
+        print('no stat taskid:{}.'.format(taskid))
+    else:
+        for i in dt:
+            print(i)
+
 
 def deal_with_cmdline(args):
     print('[ use CTRL+PAUSE to break ]')
@@ -86,6 +115,7 @@ def deal_with_cmdline(args):
     password    = args.password
     db          = int(args.db)
     workerfilter= list(map(int,args.workerfilter.split(','))) if args.workerfilter!='all' else None
+    print('[ REDIS-SERVER ] host:{},port:{}'.format(host,port))
     sd = Sender.from_settings(host=host,port=port,password=password,db=db)
     while True:
         cmd = input('cmd/ ')
@@ -119,6 +149,7 @@ def execute(argv=None):
     parse.add_argument('-pa','--password',          default=None,                   help=argparse.SUPPRESS)
     parse.add_argument('-db','--db',                default=0,                      help=argparse.SUPPRESS)
     parse.add_argument('-wf','--workerfilter',      default='all',                  help=argparse.SUPPRESS)
+    parse.add_argument('-ta','--taskid',            default=None,                   help=argparse.SUPPRESS)
 
     _print_help(argv)
 
