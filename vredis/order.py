@@ -39,7 +39,7 @@ def cmdline_command(cls, taskid, workerid, order):
             finally:
                 # 存在无限的命令，所以这里需要靠连接状态的挂钩才能断开
                 # 另外，使用下面的挂钩不能解决当执行时存在 y/n 等待的情况，
-                # 会无限等待，卡死一个配置任务的 pull_task 线程。
+                # 会无限等待，卡死一个配置任务的 run_cmdline 线程。
                 # 所以一般使用命令行最好就进行简单的 pip install ... -y 之类的简单而有用的命令即可。
                 # 尽可能防止 y/n 出现。
                 if not check_connect_sender(cls.rds, taskid, order['sender_pubn']):
