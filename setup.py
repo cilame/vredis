@@ -1,9 +1,11 @@
+import vredis
+
 from setuptools import setup, find_packages  
-import sys  
+import sys
   
 setup(  
     name="vredis.py",
-    version="1.0.2",
+    version=vredis.__version__,
     author="cilame",
     author_email="opaquism@hotmail.com",
     description="Distributed script crawler framework.",
