@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 import sys  
   
 setup(  
-    name="vredis",
-    version="0.9.0",
+    name="vredis.py",
+    version="1.0.0",
     author="cilame",
     author_email="opaquism@hotmail.com",
     description="Distributed script crawler framework.",
@@ -32,11 +32,12 @@ worker
 
 .. code-block:: python
 
+    # if in start_worker.py
     import vredis
     s = vredis.Worker.from_settings(host='xx.xx.xx.xx',port=6666,password='vilame')
     s.start()
 
-    # bash
+    # if in bash
     C:\Users\Administrator>vredis worker -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0
     # if not set param. use defaults param.
     # default host localhost
@@ -62,14 +63,32 @@ sender
         rd = random.randint(1,2)
         time.sleep(rd)
         print('use func:{}, rd time:{}'.format(i,rd))
+        return 123
+        # return a data and wraps them in JSON data and passes them in redis.
 
-    @pipe
+    @pipe.table('mytable') # if not set table, use "default" as tablename
     def some2(i):
         print('use func2:{}'.format(i))
+        return 333,444
+        # if return is a generator or list or tuple,
+        # First, he iterates out the parameters and wraps them in JSON data and passes them in.
+        # data collection space use tablename <= default tablename space "default".
 
     for i in range(100):
-        some(i)
+        some(i) # first send task it will get a taskid. info will log out.
         some2(i)
+
+
+get_data
+========
+
+    from vredis import pipe
+
+    pipe.connect(host='xx.xx.xx.xx',port=6666,password='vilame')
+    for i in pipe.from_table(taskid=26):
+        print(i)
+
+    # the second param is tablename. default tablename is "default"
 
 """,
     long_description_content_type="text/markdown",
