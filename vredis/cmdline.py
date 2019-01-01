@@ -27,14 +27,14 @@ defaults
   -pa,--password        ::redis password.                   default: None
   -db,--db              ::redis db.                         default: 0
   -wf,--workerfilter    ::[separated by ','] worker filter  default: all
-                        ||this parameter can only work in cmdLine mode.
+                        ||this parameter can only work in cmdline mode.
   -ta,--taskid          ::check task work stat              default: None
                         ||this parameter can only work in stat mode.
 
 [cmd info.]
-  "vredis"                ::show default info
-  "vredis -h"             ::show default info
-  "vredis --help"         ::show all info
+  "vredis"              ::show default info
+  "vredis -h"           ::show default info
+  "vredis --help"       ::show all info
 '''
 
 cmdline_description = '''
