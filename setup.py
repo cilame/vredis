@@ -3,7 +3,7 @@ import sys
   
 setup(  
     name="vredis.py",
-    version="1.0.1",
+    version="1.0.2",
     author="cilame",
     author_email="opaquism@hotmail.com",
     description="Distributed script crawler framework.",
