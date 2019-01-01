@@ -3,7 +3,7 @@ import sys
   
 setup(  
     name="vredis.py",
-    version="1.0.0",
+    version="1.0.1",
     author="cilame",
     author_email="opaquism@hotmail.com",
     description="Distributed script crawler framework.",
@@ -13,7 +13,7 @@ setup(
     install_requires=[
         'redis',
     ],
-    long_description=r"""
+    long_description="""
 Distributed script crawler framework.
 =====================================
 
@@ -38,7 +38,7 @@ worker
     s.start()
 
     # if in bash
-    C:\Users\Administrator>vredis worker -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0
+    C:\\Users\\Administrator>vredis worker -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0
     # if not set param. use defaults param.
     # default host localhost
     # default port 6379
@@ -81,6 +81,8 @@ sender
 
 get_data
 ========
+
+.. code-block:: python
 
     from vredis import pipe
 
