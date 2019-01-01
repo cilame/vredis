@@ -123,6 +123,30 @@ PS C:\Users\Administrator\Desktop\vredis> vredis cmdline -ho xx.xx.xx.xx -po 666
 cmd/
 ```
 
+- ##### 如何检查你的任务情况
+
+```bash
+C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta 23
+[ REDIS-SERVER ] host:47.99.126.229, port:6379
+   taskid  collect  execute     fail     stop
+   ------   ------   ------   ------   ------
+      138      352       32        0     True
+      139      430       40        0     True
+      140      405       38        0     True
+      141      374       35        0     True
+      142      351       33        0     True
+      143      276       27        0     True
+      144      283       26        0     True
+      145      259       24        0     True
+      146      205       19        0     True
+      147      283       26        0     True
+   ------   ------   ------   ------   ------
+        -  collect  execute     fail  unstart
+      all     3218      300        0        0
+# 因为 --help 文档里面已经写的很详细了，所以这里就给一个简单的指令模板以及其执行的结果作为参考。
+# stat 指令必须要添加 -ta,--taskid 参数来指定需要检查的任务id。
+```
+
 - ##### 一些优势
 
 ```
