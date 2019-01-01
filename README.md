@@ -4,8 +4,18 @@
 ```
 一个极其方便基于 redis 的多任务分布式 python 脚本执行的函数库。
 其最大的特点就是与一般脚本几乎无缝衔接，并且支持实时回显。
-    # 当你提交的任务中有 print 函数，错误信息都能实时回显。
+    # 当你提交的多个任务中有 print 函数输出，错误信息输出，他
+    都能实时回显。
     # 多任务同时执行也会根据任务 ID 进行回传信息的分发。保证多人开发时不冲突。
+```
+
+- ##### 安装方式
+
+```bash
+# 通过 pip 直接从pypi上下载安装
+C:\Users\Administrator>pip install vredis.py
+# 通过 pip+git 从github上下载安装
+C:\Users\Administrator>pip install git+https://github.com/cilame/vredis.git
 ```
 
 - ##### 工作端连接方式
