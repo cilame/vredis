@@ -299,6 +299,7 @@ for __very_unique_item__ in locals():
                 llock = int(rds.hget(defaults.VREDIS_WORKER, _llock) or 0) # 这应该是最后最后的抗灾回收处理了。
                 if TaskEnv.__taskenv__[taskid]['lock'] == 0 or llock == 0:
                     m, n = 0, 0
+                    if valve.VREDIS_HOOKCRASH is None: return False
                     for workerid in valve.VREDIS_HOOKCRASH:
                         if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
                             _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
