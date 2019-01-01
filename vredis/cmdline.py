@@ -97,6 +97,10 @@ def deal_with_stat(args):
     port        = int(args.port)
     password    = args.password
     db          = int(args.db)
+    if args.taskid is None:
+        print('pls set param:taskid for check task stat.')
+        print('[eg.] "vredis stat -ta 23"')
+        return
     taskid      = int(args.taskid)
     print('[ REDIS-SERVER ] host:{},port:{}'.format(host,port))
     sd = Sender.from_settings(host=host,port=port,password=password,db=db)
