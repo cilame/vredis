@@ -11,11 +11,12 @@
 - ##### 工作端连接方式
 
 ```python
-# 使用命令行来实现 worker 端的启动
+# 两种开启伺服 worker 的方式，使用哪种都可以。
+# 1) 使用命令行来实现 worker 端的启动
 # C:\Users\Administrator>vredis worker --host 47.99.126.229 --port 6379 --password vilame --db 0
 # C:\Users\Administrator>vredis # 直接输入工具名字就是命令行工具的帮助文档
 
-# 使用脚本的方式实现 worker 端的启动
+# 2) 使用脚本的方式实现 worker 端的启动
 # start_worker.py
 import vredis
 s = vredis.Worker.from_settings(host='47.99.126.229',port=6379,password='vilame')
