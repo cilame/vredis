@@ -4,24 +4,23 @@
 ```
 一个极其方便基于 redis 的多任务分布式 python 脚本执行的函数库。
 其最大的特点就是与一般脚本几乎无缝衔接，并且支持实时回显。
-    # 当你提交的多个任务中有 print 函数输出，错误信息输出，他
-    都能实时回显。
+    # 当你提交的多个任务中有 print 函数输出，错误信息输出，它都能实时回显。
     # 多任务同时执行也会根据任务 ID 进行回传信息的分发。保证多人开发时不冲突。
 ```
 
 - ##### 安装方式
 
 ```bash
-# 通过 pip 直接从pypi上下载安装
+# 1）通过 pip 直接从pypi上下载安装
 C:\Users\Administrator>pip install vredis.py
-# 通过 pip+git 从github上下载安装
+# 2）通过 pip+git 从github上下载安装
 C:\Users\Administrator>pip install git+https://github.com/cilame/vredis.git
 ```
 
 - ##### 工作端连接方式
 
 ```python
-# 安装该工具库后会给一个命令行工具，你可以通过命令行工具直接开启一个 worker
+# 安装该工具库后会给一个命令行工具，你可以通过命令行工具直接开启 worker
 # 两种开启伺服 worker 的方式，使用哪种都可以。
 # 1) 使用命令行来实现 worker 端的启动
 # C:\Users\Administrator>vredis worker --host 47.99.126.229 --port 6379 --password vilame --db 0
@@ -146,6 +145,7 @@ cmd/
 ```bash
 # 因为 --help 文档里面已经写的很详细了，所以这里就给一个简单的指令模板以及其执行的结果作为参考。
 # vredis stat 指令必须要添加 -ta,--taskid 参数来指定需要检查的任务id。
+
 C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta 23
 [ REDIS-SERVER ] host:47.99.126.229, port:6379
    taskid  collect  execute     fail     stop
@@ -163,6 +163,7 @@ C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta
    ------   ------   ------   ------   ------
         -  collect  execute     fail  unstart
       all     3218      300        0        0
+
 # collect 代表收集的数量
 # execute 代表执行的函数数量
 # fail 代表错误函数数量（异常超过3次）
