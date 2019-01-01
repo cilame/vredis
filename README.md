@@ -21,6 +21,7 @@ C:\Users\Administrator>pip install git+https://github.com/cilame/vredis.git
 - ##### 工作端连接方式
 
 ```python
+# 安装该工具库后会给一个命令行工具，你可以通过命令行工具直接开启一个 worker
 # 两种开启伺服 worker 的方式，使用哪种都可以。
 # 1) 使用命令行来实现 worker 端的启动
 # C:\Users\Administrator>vredis worker --host 47.99.126.229 --port 6379 --password vilame --db 0
@@ -42,7 +43,7 @@ from vredis import pipe
 # 只要用 pipe 这个实例 connect 就可以连接上服务器。
 # 如果什么都不写，甚至不写 pipe.connect(...) 这一行，
 # 那么就会默认在 “开始执行任务” 后再连接 localhost:6379 无密码，db=0.
-# 不过一般来说都是需要自己主动连接一个特有的 redis 服务器。
+# 不过一般来说都是需要自己主动连接一个特有的 redis 服务器。只在本机使用就不算是分布式了。
 
 
 
@@ -161,12 +162,17 @@ C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta
 - ##### 一些优势
 
 ```
-1 方便的开启
+1 方便的开启，简约的脚本使用方式，以及更加快捷的部署
     只需要用该库的命令行指令连接上 redis，就能为分布式脚本提供一个可执行的算力。
+    装饰器接口可以让开发者自由的从本机与分布式来回切换。
+    部署上不是传统的 sender -> master -> worker 模式开发，
+    这里只有 sender、worker，以及一个干干净净的 redis。
+    部署非常轻松，甚至随便叫一个 pythoner 下载了这个库，一行命令开启 worker端连接上 redis就能提供服务。
 2 方便的 DEBUG
     极低的代码入侵，能让你像是在本地开发一样开发分布式脚本。
     而且由于实时回显的强大功能，可以让你更快更方便的 DEBUG 脚本发生的问题。
-    开启实时回显时，如果脚本断开，那么该 taskid 的任务就会被 worker 端中断，在不影响其他任务的情况下节约资源。
+    开启实时回显时，如果脚本断开，那么该 taskid 的任务就会被 worker 端中断，
+    面对一些仍在测试的中却提交了一个非常大数量的任务，也可以方便的断开重调，在不影响其他任务的情况下节约资源。
     任务如果出现异常，则会重跑。但如果重跑超过 3 次便会将任务放入错误任务收集区。保证更好的调试。
 3 支持多任务，多人开发，任务安全
     支持多任务同时执行！每次执行都会维护一个 taskid。让不同的任务同时执行时会根据 taskid 维护他们的配置空间。
