@@ -9,7 +9,7 @@ from .sender import Sender
 
 vredis_command_types = defaults.VREDIS_COMMAND_TYPES
 vredis_command_types.remove('script') 
-vredis_command_types = vredis_command_types + ['worker']
+vredis_command_types = vredis_command_types + ['worker','stat']
 
 description = '''
 usage
@@ -92,7 +92,7 @@ def deal_with_worker(args):
     wk.start()
 
 
-def deal_with_worker(args):
+def deal_with_stat(args):
     host        = args.host
     port        = int(args.port)
     password    = args.password
@@ -104,8 +104,30 @@ def deal_with_worker(args):
     if dt is None:
         print('no stat taskid:{}.'.format(taskid))
     else:
-        for i in dt:
-            print(i)
+        # format print
+        a = dt.pop('all')
+        kt = sorted(dt,key=lambda i:int(i))
+        fmt = '{:>9}'*5
+        print(fmt.format('taskid','collect','execute','fail','stop'))
+        print(fmt.format(*['------']*5))
+        for idx,key in enumerate(kt):
+            value = dt[key]
+            fm = fmt.format(key,
+                value['collection'],
+                value['execute'],
+                value['fail'],
+                str(bool(value['stop'])))
+            print(fm)
+            if idx == len(dt) - 1:
+                print(fmt.format(*['------']*5))
+                print(fmt.format('-','collect','execute','fail','unstart'))
+                key,value = 'all',a
+                fm = fmt.format(key,
+                    value['collection'],
+                    value['execute'],
+                    value['fail'],
+                    value['tasknum'])
+                print(fm)
 
 
 def deal_with_cmdline(args):
@@ -156,6 +178,7 @@ def execute(argv=None):
     args = parse.parse_args()
     if   args.command == 'worker':  deal_with_worker(args)
     elif args.command == 'cmdline': deal_with_cmdline(args)
+    elif args.command == 'stat':    deal_with_stat(args)
 
 if __name__ == '__main__':
     execute()
