@@ -58,8 +58,8 @@ class Pipe:
         self.timestamp  = time.time()
 
         self.DEBUG      = False
-        self.KEEPALIVE  = False
-        self.LOG_ITEM   = False
+        self.KEEPALIVE  = True
+        self.LOG_ITEM   = True
 
     def from_settings(self,**settings):
         # 这里的配置可以有 redis 库里面 redis 类实例化所需要的各个参数
@@ -113,7 +113,7 @@ class Pipe:
     def _overtime_start_getbacklog(self):
         # 开启另外的线程开始显示日志信息,如果没有 KEEPALIVE 则不需要
         def _logtoggle():
-            while time.time() - self.timestamp < 1: # 当任务发送结束（间隙不超过）n秒后就开始从日志管道抽取日志信息。
+            while time.time() - self.timestamp < 1.5: # 当任务发送结束（间隙不超过）n秒后就开始从日志管道抽取日志信息。
                 time.sleep(.15)
             self.sender.waitstart = False
         Thread(target=_logtoggle).start()
@@ -178,6 +178,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.0.5'
+__version__ = '1.0.6'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'

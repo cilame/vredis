@@ -12,6 +12,7 @@ setup(
     entry_points={
         'console_scripts': ['vredis = vredis.cmdline:execute']
     },
+    python_requires=">=3.6",
     install_requires=[
         'redis',
     ],
