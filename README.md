@@ -15,6 +15,19 @@
 C:\Users\Administrator>pip install vredis.py
 # 2）通过 pip+git 从github上下载安装
 C:\Users\Administrator>pip install git+https://github.com/cilame/vredis.git
+
+# redis 的配置需要注意的是
+# 1）如果内存比较小可能会因为快照存储问题导致异常，可以将 redis.conf 文件内部的 
+#    默认参数 “stop-writes-on-bgsave-error” 这行后面的 “yes” 改为 “no”。
+# 2）尽量设置一个密码保证数据库的安全。
+```
+
+- ##### redis 的配置需要注意的地方
+
+```bash
+# 1）如果服务器内存比较小可能会因为快照存储问题导致异常，可以将 redis.conf 文件内部的 
+#    默认参数 “stop-writes-on-bgsave-error” 这行后面的 “yes” 改为 “no”。
+# 2）尽量设置一个密码保证数据库的安全。
 ```
 
 - ##### 工作端连接方式
