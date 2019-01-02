@@ -56,6 +56,19 @@ pipe.connect(host='47.99.126.229',port=6379,password='vilame')
 #  实时回显的模式下，如果脚本关闭，则任务 worker 端就会中断相应的 taskid 任务。
 #  开发时 KEEPALIVE=True 的默认模式是最方便调试、也是最不容易浪费资源的一种方式。
 #  提交模式后面会有说到。
+#pipe.QUICK_SEND = False（是否快速提交任务的开关，默认True）
+#  默认开启，开启会以线程池的方式进行任务的提交，对 redis 的内存有一定的要求
+#  因为在测试过程中出现之前都没有出现过的错误（redis内存不足）：
+#  MISCONF Redis is configured to save RDB snapshots, but is currently not able 
+#  to persist on disk. Commands that may modify the data set are disabled. 
+#  Please check Redis logs for details about the error.
+#  网上的解决办法，修改 redis.conf 文件内部的 “stop-writes-on-bgsave-error yes” 这行，将
+#  配置参数改为 “stop-writes-on-bgsave-error no” 即可。
+#  由于之前都没有出现过该问题，只在这次测试有这个问题。并且，
+#  检查日志文件发现是内存不够的问题，总之这个任务的开启在测试中的结论是，
+#  多线程提交会稍微增加 redis 内存负担，如果想要单线程提交，
+#  设置 pipe 配置参数 QUICK_SEND 为 False 即可，也可以考虑增加内存。
+
 
 
 

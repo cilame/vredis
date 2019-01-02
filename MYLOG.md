@@ -297,5 +297,5 @@ scrapy 的代码耦合性也很强，不如 requests 这样的更为良好的接
     # 并且在一定程度上减少了之前任务中出现的错误！无心插柳！晚上看来需要一顿烤鸡来犒劳一下我自己了。
     # 另外在测试过程中出现了 redis 方面的错误
     # (error) MISCONF Redis is configured to save RDB snapshots, but is currently not able to persist on disk.
-    # 可能与内存相关。
+    # 可能与内存相关，考虑增加内存。
 ```
