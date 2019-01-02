@@ -217,8 +217,10 @@ class Worker(common.Initer):
                             # 网络异常中断点的问题可能存在一些奇怪问题，目前暴力异常捕捉即可。
                             send_to_pipeline(self,taskid,workerid,order,'error',traceback.format_exc())
                         except:
-                            with common.Initer.lock:
-                                __org_stdout__.write(traceback.format_exc())
+                            # 开发使用的代码
+                            # with common.Initer.lock:
+                            #     __org_stdout__.write(traceback.format_exc())
+                            pass
                         try:
                             # 任务失败则重试，默认最大重试次数为3
                             retry = plus.get('retry',0)
