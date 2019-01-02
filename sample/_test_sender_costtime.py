@@ -39,7 +39,7 @@ def some2(i):
     #print('use func2:{}'.format(i))
     return 333333,444444
 
-for i in range(300):
+for i in range(1000):
     #print(i)
     some2(i)
     some(i)

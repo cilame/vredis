@@ -1,7 +1,8 @@
 import inspect
 import time
 import json
-from threading import Thread
+import queue
+from threading import Thread, RLock
 
 
 from . import defaults
@@ -59,7 +60,11 @@ class Pipe:
 
         self.DEBUG      = False
         self.KEEPALIVE  = True
-        self.LOG_ITEM   = True
+        self.LOG_ITEM   = False
+        self.QUICK_SEND = True
+
+        self.taskqueue  = queue.Queue()
+        self.lock       = RLock()
 
     def from_settings(self,**settings):
         # 这里的配置可以有 redis 库里面 redis 类实例化所需要的各个参数
@@ -88,35 +93,77 @@ class Pipe:
         src = '\n'.join(filter(lambda i:not i.strip().startswith('@'), src.splitlines()))+'\n'
         self.script += src
         def _wrapper(*args, **kwargs):
-            if self.unstart:
-                if not self.KEEPALIVE:
-                    self._overtime_start_getbacklog()
-                self.sender     = self.sender if self.sender is not None else Sender()
-                self.tid        = self.sender.send(input_order = {
-                                                        'command':'script',
-                                                        'settings':{
-                                                            'VREDIS_SCRIPT':        self.script,
-                                                            'DEBUG':                self.DEBUG,
-                                                            'VREDIS_KEEP_LOG_ITEM': self.LOG_ITEM,
-                                                            'VREDIS_KEEPALIVE':     self.KEEPALIVE}
-                                                        },
-                                                    waitstart=not self.KEEPALIVE,
-                                                    keepalive=self.KEEPALIVE)
-                self.unstart    = False
             if not self.KEEPALIVE:
                 self.timestamp = time.time()
-            self.sender.send_execute(self.tid, func.__name__, args, kwargs, plus)
+            with self.lock:
+                if self.unstart:
+                    self.sender = self.sender if self.sender is not None else Sender()
+                    self.tid    = self.sender.get_taskid()
+                    if self.QUICK_SEND:
+                        # 多线程池任务发送
+                        self.quicker()
+                        self.task_sender = self.quick_send
+                    else:
+                        # 单线程发送任务即可
+                        self.task_sender = self.normal_send
+                    if not self.KEEPALIVE:
+                        # 发送模式先获取任务id号码，先传输任务
+                        self.send_work_delay()
+                    else:
+                        # 实时模式则先发送任务，直接实时传输任务即可。
+                        self.send_work()
+                    self.unstart = False
+            self.task_sender(self.tid, func.__name__, args, kwargs, plus, self.KEEPALIVE)
         return _wrapper
 
 
 
-    def _overtime_start_getbacklog(self):
-        # 开启另外的线程开始显示日志信息,如果没有 KEEPALIVE 则不需要
+
+    # 线程池，主要用于快速提交任务使用
+    def quicker(self):
+        def _sender():
+            while True:
+                try:
+                    taskid, function_name, args, kwargs, plus, keepalive = self.taskqueue.get(timeout=2)
+                    self.sender.send_execute(taskid, function_name, args, kwargs, plus, keepalive)
+                except:
+                    if time.time() - self.timestamp > 2:
+                        break
+                    time.sleep(.15)
+        for _ in range(defaults.VREDIS_SENDER_THREAD_SEND):
+            Thread(target=_sender).start()
+
+    # 快速提交任务，如果你不是实时任务模式的话，就没有必要慢慢的跑任务 DEBUG
+    def quick_send(self, taskid, function_name, args, kwargs, plus, keepalive):
+        self.taskqueue.put((taskid, function_name, args, kwargs, plus, keepalive))
+
+    def normal_send(self, taskid, function_name, args, kwargs, plus, keepalive):
+        self.sender.send_execute(taskid, function_name, args, kwargs, plus, keepalive)
+
+
+
+
+    # 开启任务
+    def send_work(self):
+        self.tid =  self.sender.send(input_order = {
+                        'command':'script',
+                        'settings':{
+                            'VREDIS_SCRIPT':        self.script,
+                            'DEBUG':                self.DEBUG,
+                            'VREDIS_KEEP_LOG_ITEM': self.LOG_ITEM,
+                            'VREDIS_KEEPALIVE':     self.KEEPALIVE}
+                        },
+                    keepalive=self.KEEPALIVE)
+
+    # 延迟开启任务
+    def send_work_delay(self):
+        # 如果无需保持连接的话，等执行完就
         def _logtoggle():
             while time.time() - self.timestamp < 1.5: # 当任务发送结束（间隙不超过）n秒后就开始从日志管道抽取日志信息。
                 time.sleep(.15)
-            self.sender.waitstart = False
+            self.send_work()
         Thread(target=_logtoggle).start()
+
 
 
     def set(self, **plus):
@@ -178,6 +225,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.0.7'
+__version__ = '1.0.8'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'

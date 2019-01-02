@@ -145,8 +145,6 @@ def send_to_pipeline_execute(cls, taskid, function_name, args, kwargs, plus={}):
 
 
 
-
-
 #==========
 # 数据收集
 #==========

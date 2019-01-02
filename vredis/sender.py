@@ -8,8 +8,14 @@ import random
 
 from . import defaults
 from . import common
-from .pipeline import from_pipeline, send_to_pipeline_execute
-from .utils import checked_order, check_connect_worker
+from .pipeline import (
+    from_pipeline, 
+    send_to_pipeline_execute,
+)
+from .utils import (
+    checked_order, 
+    check_connect_worker
+)
 
 class Sender(common.Initer):
     def __init__(self,
@@ -33,7 +39,6 @@ class Sender(common.Initer):
 
     def process_run(self):
         workernum = len(self.start_worker)
-        while self.waitstart: time.sleep(.15)
         while self.keepalive and workernum:
             runinfo = from_pipeline(self, self.taskid, 'run')
             if runinfo and runinfo['piptype'] == 'realtime':
@@ -112,10 +117,14 @@ class Sender(common.Initer):
             print('none worker receive task.')
 
 
-    def send(self, input_order, loginfo=True, waitstart=False, keepalive=True):
+    def get_taskid(self):
+        self.taskid = self.taskid if hasattr(self,'taskid') else \
+            self.rds.hincrby(defaults.VREDIS_SENDER,defaults.VREDIS_SENDER_ID)
+        return self.taskid
+
+    def send(self, input_order, loginfo=True, keepalive=True):
         self.taskstop   = False
         self.logstop    = False     # 用于在 cmdline 内对命令返回输出结束挂钩
-        self.waitstart  = waitstart # 用于在 脚本装饰器 内对任务发送完毕挂钩。让任务发送完毕再开始接收回传信息
         self.loginfo    = loginfo
         self.keepalive  = keepalive
         def wait_connect_pub_sender(self):
@@ -128,8 +137,7 @@ class Sender(common.Initer):
             self.pubn = int(self.rds.pubsub_numsub(rname)[0][1]) # 一个源于redis自身的问题，这里不一定是1，所以需要进行传递处理。
 
         # 获取任务id 并广播出去，一个对象维护一个taskid
-        self.taskid = self.taskid if hasattr(self,'taskid') else \
-            self.rds.hincrby(defaults.VREDIS_SENDER,defaults.VREDIS_SENDER_ID)
+        self.get_taskid()
         wait_connect_pub_sender(self) # 发送任务前需要等待自连接广播打开,用于任意形式发送端断开能被工作端检测到
         self.order  = {'taskid':self.taskid, 'order':{**checked_order(input_order),**{'sender_pubn':self.pubn}}}
         self.pubnum = self.rds.publish(defaults.VREDIS_PUBLISH_WORKER, json.dumps(self.order))
@@ -137,8 +145,10 @@ class Sender(common.Initer):
         return self.taskid
 
 
-    def send_execute(self, taskid, function_name, args, kwargs, plus):
-        if self.start_worker:
+    def send_execute(self, taskid, function_name, args, kwargs, plus, keepalive=True):
+        if not keepalive:
+            send_to_pipeline_execute(self, taskid, function_name, args, kwargs, plus)
+        elif self.start_worker:
             send_to_pipeline_execute(self, taskid, function_name, args, kwargs, plus)
 
 

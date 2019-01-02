@@ -36,6 +36,9 @@ VREDIS_DATA_TIMEOUT = 3
 VREDIS_PUBLISH_WORKER = 'vredis:publish:worker'
 VREDIS_PUBLISH_SENDER = 'vredis:publish:sender'
 
+# 现在默认使用的就是快速提交模式，也就是锁提交任务以20个线程实现快速提交。
+VREDIS_SENDER_THREAD_SEND = 20
+
 # “修改配置” 的任务将会在非任务线程中实现。
 # 执行任务的线程数量，为防止线程过量导致问题，暂时是使用线程来实现功能。
 # 不过这里的配置已经是非常重要的 worker 全局配置了。

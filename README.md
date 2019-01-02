@@ -49,7 +49,7 @@ from vredis import pipe
 pipe.connect(host='47.99.126.229',port=6379,password='vilame')
 
 #pipe.DEBUG = True # worker端是否进行控制台打印。我个人开发时会打开，一般没必要。
-#  因为只是数据不在 worker 端打印，原本会打印的那些数据还是会回传到 sender 端。
+#  因为只是数据不在 worker 端打印，原本会打印的那些数据还是会回传到 redis 内。
 #  一个 pipe 实例在 “开始执行任务” 后会从 redis 服务器上拿到一个唯一 taskid。
 #  这样，不同的人执行脚本时 pipe 实例维护的都是不同的 taskid。这样设计多人使用才不会冲突。
 #pipe.KEEPALIVE = False （实时回显的开关，默认True，关闭则变成提交任务模式）
