@@ -32,13 +32,13 @@ C:\Users\Administrator>pip install git+https://github.com/cilame/vredis.git
 # 安装该工具库后会给一个命令行工具，你可以通过命令行工具直接开启 worker
 # 两种开启伺服 worker 的方式，使用哪种都可以。
 # 1) 使用命令行来实现 worker 端的启动
-# C:\Users\Administrator>vredis worker --host 47.99.126.229 --port 6379 --password vilame --db 0
+# C:\Users\Administrator>vredis worker --host 47.99.126.229 --port 6379 --password vredis --db 0
 # C:\Users\Administrator>vredis # 直接输入工具名字就是命令行工具的帮助文档
 
 # 2) 使用脚本的方式实现 worker 端的启动
 # start_worker.py
 import vredis
-s = vredis.Worker.from_settings(host='47.99.126.229',port=6379,password='vilame')
+s = vredis.Worker.from_settings(host='47.99.126.229',port=6379,password='vredis')
 s.start()
 ```
 
@@ -55,7 +55,7 @@ from vredis import pipe
 
 
 
-pipe.connect(host='47.99.126.229',port=6379,password='vilame')
+pipe.connect(host='47.99.126.229',port=6379,password='vredis')
 
 #pipe.DEBUG = True # worker端是否进行控制台打印。我个人开发时会打开，一般没必要。
 #  因为只是数据不在 worker 端打印，原本会打印的那些数据还是会回传到 redis 内。
@@ -135,7 +135,7 @@ for i in range(100):
 
 ```python
 from vredis import pipe
-pipe.connect(host='47.99.126.229',port=6379,password='vilame')
+pipe.connect(host='47.99.126.229',port=6379,password='vredis')
 for i in pipe.from_table(taskid=29):
     print(i)
 
@@ -155,7 +155,7 @@ C:\Users\Administrator>vredis --help
 # 通过连接可以得到一个非常简陋的类 bash 的指令传输区，在 cmd/ 后面直接输入指令就能传递执行
 # 主要用来 pip 安装一些远端没有的库函数。目前请勿传输会中途需要卡住 bash的指令，例如任意会弹出 y/n 的指令。
 
-PS C:\Users\Administrator\Desktop\vredis> vredis cmdline -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0
+PS C:\Users\Administrator\Desktop\vredis> vredis cmdline -ho xx.xx.xx.xx -po 6666 -pa vredis -db 0
 [ use CTRL+PAUSE to break ]
 cmd/
 ```
@@ -166,7 +166,7 @@ cmd/
 # 因为 --help 文档里面已经写的很详细了，所以这里就给一个简单的指令模板以及其执行的结果作为参考。
 # vredis stat 指令必须要添加 -ta,--taskid 参数来指定需要检查的任务id。
 
-C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta 23
+C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vredis -db 0 -ta 23
 [ REDIS-SERVER ] host:47.99.126.229, port:6379
    taskid  collect  execute     fail     stop
    ------   ------   ------   ------   ------
@@ -181,13 +181,13 @@ C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta
       146      205       19        0     True
       147      283       26        0     True
    ------   ------   ------   ------   ------
-        -  collect  execute     fail  unstart
+        -  collect  execute     fail  undistr
       all     3218      300        0        0
 
 # collect 代表收集的数量
 # execute 代表执行的函数数量
 # fail 代表错误函数数量（异常超过3次）
-# unstart 代表还未被取走的任务数量
+# undistr 代表还未被分发出去的任务数量
 ```
 
 - ##### 一些优势
@@ -213,8 +213,8 @@ C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0 -ta
     例如你想看23号任务的执行情况你可以在安装工具后使用 "vredis stat -ta 23" 指令查看（默认查看本机redis）
     当然，你的 redis-server 配置不一样的话，就需要在命令行里面配置 redis-server 的信息。
     类似下面的指令：
-    "vredis stat -ta 23 -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0"
-    "vredis stat -ta 23 --host xx.xx.xx.xx -port 6666 -password vilame --db 0"
+    "vredis stat -ta 23 -ho xx.xx.xx.xx -po 6666 -pa vredis -db 0"
+    "vredis stat -ta 23 --host xx.xx.xx.xx -port 6666 -password vredis --db 0"
 
 只要一个 redis 服务器，你就可以让任何能连上分布式的电脑变成你分布式的一部分。
 ```

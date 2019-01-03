@@ -37,11 +37,11 @@ worker
 
     # if in start_worker.py
     import vredis
-    s = vredis.Worker.from_settings(host='xx.xx.xx.xx',port=6666,password='vilame')
+    s = vredis.Worker.from_settings(host='xx.xx.xx.xx',port=6666,password='vredis')
     s.start()
 
     # if in bash
-    C:\\Users\\Administrator>vredis worker -ho xx.xx.xx.xx -po 6666 -pa vilame -db 0
+    C:\\Users\\Administrator>vredis worker -ho xx.xx.xx.xx -po 6666 -pa vredis -db 0
     # if not set param. use defaults param.
     # default host localhost
     # default port 6379
@@ -55,7 +55,7 @@ sender
 
     from vredis import pipe
 
-    pipe.connect(host='xx.xx.xx.xx',port=6666,password='vilame')
+    pipe.connect(host='xx.xx.xx.xx',port=6666,password='vredis')
     pipe.DEBUG = True # True/False. worker prints on the worker_console.
 
     # very low code intrusion, no decorator or even complete barrier-free execution
@@ -89,7 +89,7 @@ get_data
 
     from vredis import pipe
 
-    pipe.connect(host='xx.xx.xx.xx',port=6666,password='vilame')
+    pipe.connect(host='xx.xx.xx.xx',port=6666,password='vredis')
     for i in pipe.from_table(taskid=26):
         print(i)
 

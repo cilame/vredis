@@ -99,6 +99,7 @@ class Pipe:
                 if self.unstart:
                     self.sender = self.sender if self.sender is not None else Sender()
                     self.tid    = self.sender.get_taskid()
+                    self.sender.rds.hset(defaults.VREDIS_WORKER, '{}@stamp'.format(self.tid), int(time.time()))
                     if self.QUICK_SEND:
                         # 多线程池任务发送
                         self.quicker()

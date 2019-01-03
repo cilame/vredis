@@ -1,1 +1,0 @@
-python .\_test_cmdline.py cmdline -ho 47.99.126.229 -pa vilame

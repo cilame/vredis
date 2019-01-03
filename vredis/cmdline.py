@@ -56,7 +56,7 @@ stat_description = '''
 '''
 
 worker_description = '''
-  worker                ::[eg.] "vredis worker --host 192.168.0.77 --port 6666 --password vilame"
+  worker                ::[eg.] "vredis worker --host 192.168.0.77 --port 6666 --password vredis"
                         ||open a worker waiting task
                         ||all parameters of this command depend on default parameters
     cmd: "vredis worker"   
@@ -64,10 +64,10 @@ worker_description = '''
                         ||worker use host localhost
                         ||worker use port 6379
                         ||[ more info see defaults params ]
-    cmd: "vredis worker -ho 192.168.0.77 -po 6666 -pa vilame"
+    cmd: "vredis worker -ho 192.168.0.77 -po 6666 -pa vredis"
                         ::worker use host "192.168.0.77"
                         ||worker use port 6666
-                        ||worker use password vilame
+                        ||worker use password vredis
 '''
 
 
@@ -90,7 +90,7 @@ def _print_help(argv):
 
 
 def deal_with_worker(args):
-    print('[ use CTRL+PAUSE to break ]')
+    print('[ use CTRL+PAUSE(win)/ALT+PAUSE(linux) to break ]')
     host        = args.host
     port        = int(args.port)
     password    = args.password
@@ -110,8 +110,10 @@ def deal_with_stat(args):
         print('[eg.] "vredis stat -ta 23"')
         return
     taskid      = int(args.taskid)
-    print('[ REDIS-SERVER ] host:{}, port:{}'.format(host,port))
-    sd = Sender.from_settings(host=host,port=port,password=password,db=db)
+    info = '[ REDIS ]'+'{:>36}'.format('host: {}, port: {}'.format(host,port))
+    print(info)
+    print('='*45)
+    sd          = Sender.from_settings(host=host,port=port,password=password,db=db)
     dt = sd.get_stat(taskid)
     if dt is None:
         print('no stat taskid:{}.'.format(taskid))
@@ -132,7 +134,7 @@ def deal_with_stat(args):
             print(fm)
             if idx == len(dt) - 1:
                 print(fmt.format(*['------']*5))
-                print(fmt.format('-','collect','execute','fail','unstart'))
+                print(fmt.format('-','collect','execute','fail','undistr'))
                 key,value = 'all',a
                 fm = fmt.format(key,
                     value['collection'],
@@ -140,10 +142,16 @@ def deal_with_stat(args):
                     value['fail'],
                     value['tasknum'])
                 print(fm)
+    timestamp   = sd.rds.hget(defaults.VREDIS_WORKER, '{}@stamp'.format(taskid))
+    stampinfo   = '{:>' + str(len(info)) +'}'
+    stampcut    = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(timestamp)))) if timestamp else str(None)
+    stampinfo   = stampinfo.format('start: '+stampcut)
+    print('='*45)
+    print(stampinfo)
 
 
 def deal_with_cmdline(args):
-    print('[ use CTRL+PAUSE to break ]')
+    print('[ use CTRL+PAUSE(win)/ALT+PAUSE(linux) to break ]')
     host        = args.host
     port        = int(args.port)
     password    = args.password
