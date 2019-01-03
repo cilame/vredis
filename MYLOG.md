@@ -298,4 +298,9 @@ scrapy 的代码耦合性也很强，不如 requests 这样的更为良好的接
     # 另外在测试过程中出现了 redis 方面的错误
     # (error) MISCONF Redis is configured to save RDB snapshots, but is currently not able to persist on disk.
     # 可能与内存相关，考虑增加内存。
+
+#20190103
+添加了命令行停止任务的方法。 原本 KEEPALIVE=True 的模式下也会挂钩停止，
+不过那个停止是慢慢将任务缓冲区一个个 pop 出来，什么都不做。为了防止发送端偶尔网络中断影响测试。
+而命令行停止的方法可以直接清空任务队列，包括提交模式也可以停止。这是以最快停止一个任务的方式。
 ```
