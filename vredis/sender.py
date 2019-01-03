@@ -128,13 +128,14 @@ class Sender(common.Initer):
         self.loginfo    = loginfo
         self.keepalive  = keepalive
         def wait_connect_pub_sender(self):
-            rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, self.taskid)
-            cursub = self.rds.pubsub_numsub(rname)[0][1]
-            self.pub = self.rds.pubsub()
+            rname       = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, self.taskid)
+            cursub      = self.rds.pubsub_numsub(rname)[0][1]
+            self.pub    = self.rds.pubsub()
             self.pub.subscribe(rname)
             while self.rds.pubsub_numsub(rname)[0][1] == cursub:
                 time.sleep(.15)
-            self.pubn = int(self.rds.pubsub_numsub(rname)[0][1]) # 一个源于redis自身的问题，这里不一定是1，所以需要进行传递处理。
+            self.pubn   = int(self.rds.pubsub_numsub(rname)[0][1]) # 一个源于redis自身的问题，这里不一定是1，所以需要进行传递处理。
+            self.rds.hset(defaults.VREDIS_WORKER, '{}@inter'.format(self.taskid), 1)
 
         # 获取任务id 并广播出去，一个对象维护一个taskid
         self.get_taskid()

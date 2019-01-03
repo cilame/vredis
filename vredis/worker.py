@@ -209,8 +209,13 @@ class Worker(common.Initer):
                                 _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
                                 self.rds.lrem(_cname, 1, ret)
                         else:
-                            data = eval(func_str, None, taskenv)
-                            send_to_pipeline_data(self,taskid,data,ret,table,valve)
+                            inter = self.rds.hget(defaults.VREDIS_WORKER, '{}@inter'.format(taskid)) or 0
+                            if int(inter):
+                                data = eval(func_str, None, taskenv)
+                                send_to_pipeline_data(self,taskid,data,ret,table,valve)
+                            else:
+                                _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
+                                self.rds.lrem(_cname, 1, ret)
                     except:
                         try:
                             # 这里的任务会用到任务配置的空间，所以需要考虑暴力处理异常。

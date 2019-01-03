@@ -9,16 +9,17 @@ from .sender import Sender
 
 vredis_command_types = defaults.VREDIS_COMMAND_TYPES
 vredis_command_types.remove('script') 
-vredis_command_types = vredis_command_types + ['worker','stat']
+vredis_command_types = vredis_command_types + ['worker','stat','stop']
 
 description = '''
 usage
   vredis <command> [options] [args]
 
 command
-  stat      use taskid check task work stat.
-  cmdline   use cmdline connect host. and sent simple bash command.
   worker    start a worker.
+  cmdline   use cmdline connect host. and sent simple bash command.
+  stat      use taskid check task work stat.
+  stop      use taskid stop a task.
   <command> -h|--help   ::show subcommand info
 {}
 defaults
@@ -51,8 +52,12 @@ cmdline_description = '''
 
 stat_description = '''
   stat                  ::[eg.] "vredis stat -ta 26"
-    -ta --taskid        ||this parameter can only work in stat mode
-                        ||this command does not consume taskid
+    -ta --taskid        ||this parameter can work in stat mode
+'''
+
+stop_description = '''
+  stop                  ::[eg.] "vredis stop -ta 26"
+    -ta --taskid        ||this parameter can work in stop mode
 '''
 
 worker_description = '''
@@ -74,6 +79,7 @@ worker_description = '''
 h_description = re.sub('\{\}','',description).strip()
 help_description = description.format(''.join([cmdline_description,
                                                stat_description,
+                                               stop_description,
                                                worker_description])).strip()
 
 
@@ -95,9 +101,27 @@ def deal_with_worker(args):
     port        = int(args.port)
     password    = args.password
     db          = int(args.db)
-    print('[ REDIS-SERVER ] host:{}, port:{}'.format(host,port))
+    print('[ REDIS ] host:{}, port:{}'.format(host,port))
     wk = Worker.from_settings(host=host,port=port,password=password,db=db)
     wk.start()
+
+
+def deal_with_stop(args):
+    host        = args.host
+    port        = int(args.port)
+    password    = args.password
+    db          = int(args.db)
+    if args.taskid is None:
+        print('pls set param:taskid for stop task.')
+        print('[eg.] "vredis stop -ta 23"')
+        return
+    taskid      = int(args.taskid)
+    _rname      = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+    print('[ REDIS ] host:{}, port:{}'.format(host,port))
+    sd          = Sender.from_settings(host=host,port=port,password=password,db=db)
+    sd.rds.hset(defaults.VREDIS_WORKER, '{}@inter'.format(taskid), 0)
+    sd.rds.ltrim(_rname,0,0)
+    print('task {} ready to stop.'.format(taskid))
 
 
 def deal_with_stat(args):
@@ -157,7 +181,7 @@ def deal_with_cmdline(args):
     password    = args.password
     db          = int(args.db)
     workerfilter= list(map(int,args.workerfilter.split(','))) if args.workerfilter!='all' else None
-    print('[ REDIS-SERVER ] host:{}, port:{}'.format(host,port))
+    print('[ REDIS ] host:{}, port:{}'.format(host,port))
     sd = Sender.from_settings(host=host,port=port,password=password,db=db)
     while True:
         cmd = input('cmd/ ')
@@ -199,6 +223,7 @@ def execute(argv=None):
     if   args.command == 'worker':  deal_with_worker(args)
     elif args.command == 'cmdline': deal_with_cmdline(args)
     elif args.command == 'stat':    deal_with_stat(args)
+    elif args.command == 'stop':    deal_with_stop(args)
 
 if __name__ == '__main__':
     execute()
