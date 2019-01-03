@@ -226,6 +226,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.0.8'
+__version__ = '1.0.9'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'

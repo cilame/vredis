@@ -110,11 +110,11 @@ def deal_with_stat(args):
         print('[eg.] "vredis stat -ta 23"')
         return
     taskid      = int(args.taskid)
-    info = '[ REDIS ]'+'{:>36}'.format('host: {}, port: {}'.format(host,port))
+    info        = '[ REDIS ]'+'{:>36}'.format('host: {}, port: {}'.format(host,port))
     print(info)
     print('='*45)
     sd          = Sender.from_settings(host=host,port=port,password=password,db=db)
-    dt = sd.get_stat(taskid)
+    dt          = sd.get_stat(taskid)
     if dt is None:
         print('no stat taskid:{}.'.format(taskid))
     else:

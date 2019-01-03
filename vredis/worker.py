@@ -230,6 +230,7 @@ class Worker(common.Initer):
                             with self.rds.pipeline() as pipe:
                                 pipe.multi()
                                 if retry < defaults.VREDIS_TASK_MAXRETRY:
+                                    rdata.update({'traceback': traceback.format_exc()})
                                     pipe.rpush(_rname, json.dumps(rdata))
                                 else:
                                     # 计入错误统计信息中，推入持久错误任务管道便于查看。
