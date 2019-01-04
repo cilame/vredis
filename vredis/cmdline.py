@@ -109,7 +109,8 @@ worker_description = '''
   worker                ::[eg.] "vredis worker --host 192.168.0.77 --port 6666 --password vredis"
                         ||open a worker waiting task
                         ||all parameters of this command depend on default parameters
-                        ::[eg.] "vredis worker"   
+                        ::[eg.] "vredis worker"  
+                        ||if vredis_config not set. 
                         ||worker use defaults parameters connect redis server
                         ||worker use host localhost
                         ||worker use port 6379
@@ -122,10 +123,16 @@ worker_description = '''
 
 config_description = '''
   config                ::[eg.] "vredis config -ho xx.xx.xx.xx -po 6666 -pa vredis -db 1"
-                        ||choose the current configuration first, then config configuration. 
-                        ||If config configuration does not exist, it is the default configuration.
+                        ||over write default config
+                        ||it works in script and cmdtool.
+                        ||cmd_config > vredis_config > init_config
+                        ||cmd_config:       in cmdline
+                        ||vredis_config:    over write defaults
+                        ||init_config:      localhost:6379 passworl:None db:0
     -cl,--clear         ::clear config
                         ||this parameter can only work in config mode.
+                        ||use init_config as defaults config
+                        ||init_config:      localhost:6379 passworl:None db:0
 '''
 
 
@@ -133,7 +140,8 @@ h_description = re.sub('\{\}','',description).strip()
 help_description = description.format(''.join([cmdline_description,
                                                stat_description,
                                                stop_description,
-                                               worker_description])).strip()
+                                               worker_description,
+                                               config_description])).strip()
 
 
 
