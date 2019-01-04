@@ -191,6 +191,23 @@ C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vredis -db 0 -ta
 # undistr 代表还未被分发出去的任务数量
 ```
 
+- ##### 配置默认参数，让命令行工具使用更方便
+
+```bash
+# 增加默认配置数据的方法，使用方法在 vredis 帮助里有描述，很简单。
+# 如果什么都不写，默认打印当前配置状态 “vredis config”
+# 只有以下 4 个参数需要配置。
+
+C:\Users\Administrator>vredis config -ho xx.xx.xx.xx -pa vredis
+current defaults [use -cl/--clear clear this settings]:
+{
+    "host": "xx.xx.xx.xx",
+    "port": 6379,
+    "password": "vredis",
+    "db": 0
+}
+```
+
 - ##### 一些优势
 
 ```

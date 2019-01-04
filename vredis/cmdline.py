@@ -2,6 +2,8 @@ import sys
 import argparse
 import re
 import time
+import os
+import json
 
 from . import defaults
 from .worker import Worker
@@ -9,7 +11,33 @@ from .sender import Sender
 
 vredis_command_types = defaults.VREDIS_COMMAND_TYPES
 vredis_command_types.remove('script') 
-vredis_command_types = vredis_command_types + ['worker','stat','stop']
+vredis_command_types = vredis_command_types + ['worker','stat','stop','config']
+
+
+
+defaults_conf = dict(
+    host='localhost',
+    port=6379,
+    password=None,
+    db=0,
+)
+
+_o_conf = dict(
+    host='localhost',
+    port=6379,
+    password=None,
+    db=0,
+)
+
+home = os.environ.get('HOME')
+home = home if home else os.environ.get('HOMEDRIVE') + os.environ.get('HOMEPATH')
+config = os.path.join(home,'.vredis')
+if not os.path.exists(config):
+    with open(config,'w',encoding='utf-8') as f:
+        f.write(json.dumps(defaults_conf,indent=4))
+else:
+    with open(config,encoding='utf-8') as f:
+        defaults_conf = json.load(f)
 
 description = '''
 usage
@@ -20,17 +48,20 @@ command
   cmdline   use cmdline connect host. and sent simple bash command.
   stat      use taskid check task work stat.
   stop      use taskid stop a task.
+  config    config default host,port,password,db
   <command> -h|--help   ::show subcommand info
 {}
 defaults
-  -ho,--host            ::redis host.                       default: localhost
-  -po,--port            ::redis port.                       default: 6379
-  -pa,--password        ::redis password.                   default: None
-  -db,--db              ::redis db.                         default: 0
-  -wf,--workerfilter    ::[separated by ','] worker filter  default: all
+  -ho,--host            ::redis host.           default: localhost
+  -po,--port            ::redis port.           default: 6379
+  -pa,--password        ::redis password.       default: None
+  -db,--db              ::redis db.             default: 0
+  -wf,--workerfilter    ::worker filter         default: all
                         ||this parameter can only work in cmdline mode.
-  -ta,--taskid          ::check task work stat              default: None
+  -ta,--taskid          ::check task work stat  default: None
                         ||this parameter can only work in stat mode.
+  -cl,--clear           ::clear config, use initial configuration.
+                        ||this parameter can only work in config mode.
 
 [cmd info.]
   "vredis"              ::show default info
@@ -64,15 +95,23 @@ worker_description = '''
   worker                ::[eg.] "vredis worker --host 192.168.0.77 --port 6666 --password vredis"
                         ||open a worker waiting task
                         ||all parameters of this command depend on default parameters
-    cmd: "vredis worker"   
-                        ::worker use defaults parameters connect redis server
+                        ::[eg.] "vredis worker"   
+                        ||worker use defaults parameters connect redis server
                         ||worker use host localhost
                         ||worker use port 6379
                         ||[ more info see defaults params ]
-    cmd: "vredis worker -ho 192.168.0.77 -po 6666 -pa vredis"
-                        ::worker use host "192.168.0.77"
+                        ::[eg.] "vredis worker -ho 192.168.0.77 -po 6666 -pa vredis"
+                        ||worker use host "192.168.0.77"
                         ||worker use port 6666
                         ||worker use password vredis
+'''
+
+config_description = '''
+  config                ::[eg.] "vredis config -ho xx.xx.xx.xx -po 6666 -pa vredis -db 1"
+                        ||choose the current configuration first, then config configuration. 
+                        ||If config configuration does not exist, it is the default configuration.
+    -cl,--clear         ::clear config
+                        ||this parameter can only work in config mode.
 '''
 
 
@@ -97,20 +136,20 @@ def _print_help(argv):
 
 def deal_with_worker(args):
     print('[ use CTRL+PAUSE(win)/ALT+PAUSE(linux) to break ]')
-    host        = args.host
-    port        = int(args.port)
-    password    = args.password
-    db          = int(args.db)
+    host    = defaults_conf.get('host')
+    port    = defaults_conf.get('port')
+    password= defaults_conf.get('password')
+    db      = defaults_conf.get('db')
     print('[ REDIS ] host:{}, port:{}'.format(host,port))
     wk = Worker.from_settings(host=host,port=port,password=password,db=db)
     wk.start()
 
 
 def deal_with_stop(args):
-    host        = args.host
-    port        = int(args.port)
-    password    = args.password
-    db          = int(args.db)
+    host    = defaults_conf.get('host')
+    port    = defaults_conf.get('port')
+    password= defaults_conf.get('password')
+    db      = defaults_conf.get('db')
     if args.taskid is None:
         print('pls set param:taskid for stop task.')
         print('[eg.] "vredis stop -ta 23"')
@@ -125,10 +164,10 @@ def deal_with_stop(args):
 
 
 def deal_with_stat(args):
-    host        = args.host
-    port        = int(args.port)
-    password    = args.password
-    db          = int(args.db)
+    host    = defaults_conf.get('host')
+    port    = defaults_conf.get('port')
+    password= defaults_conf.get('password')
+    db      = defaults_conf.get('db')
     if args.taskid is None:
         print('pls set param:taskid for check task stat.')
         print('[eg.] "vredis stat -ta 23"')
@@ -176,10 +215,10 @@ def deal_with_stat(args):
 
 def deal_with_cmdline(args):
     print('[ use CTRL+PAUSE(win)/ALT+PAUSE(linux) to break ]')
-    host        = args.host
-    port        = int(args.port)
-    password    = args.password
-    db          = int(args.db)
+    host    = defaults_conf.get('host')
+    port    = defaults_conf.get('port')
+    password= defaults_conf.get('password')
+    db      = defaults_conf.get('db')
     workerfilter= list(map(int,args.workerfilter.split(','))) if args.workerfilter!='all' else None
     print('[ REDIS ] host:{}, port:{}'.format(host,port))
     sd = Sender.from_settings(host=host,port=port,password=password,db=db)
@@ -192,11 +231,44 @@ def deal_with_cmdline(args):
             while not sd.logstop:
                 time.sleep(.15)
 
+
+def init_default(args):
+    global defaults_conf
+    defaults_conf['host']    = defaults_conf.get('host')      if args.host == None else args.host
+    defaults_conf['port']    = defaults_conf.get('port')      if args.port == None else int(args.port)
+    defaults_conf['password']= defaults_conf.get('password')  if args.password == None else args.password
+    defaults_conf['db']      = defaults_conf.get('db')        if args.db == None else int(args.db)
+    # 优先本地配置，其次是config配置，最后才是默认配置
+
+
+def deal_with_config(args):
+    global defaults_conf
+    clear = int(args.clear)
+    if args.host     == None and\
+       args.port     == None and\
+       args.password == None and\
+       args.db       == None:
+        if clear:
+            with open(config,'w',encoding='utf-8') as f:
+                f.write(json.dumps(_o_conf,indent=4))
+            print('config clear')
+            print(json.dumps(_o_conf,indent=4))
+        else:
+            print('current defaults [use -cl/--clear clear this settings]:')
+            print(json.dumps(defaults_conf,indent=4))
+    else:
+        _format_defaults = json.dumps(defaults_conf,indent=4)
+        with open(config,'w',encoding='utf-8') as f:
+            f.write(_format_defaults)
+        print('current defaults [use -cl/--clear clear this settings]:')
+        print(_format_defaults)
+
+
 def test_deal(args):
-    host        = args.host
-    port        = int(args.port)
-    password    = args.password
-    db          = int(args.db)
+    host    = defaults_conf.get('host')
+    port    = defaults_conf.get('port')
+    password= defaults_conf.get('password')
+    db      = defaults_conf.get('db')
     workerfilter= args.workerfilter
     print(host,port,password,db,workerfilter)
 
@@ -210,20 +282,24 @@ def execute(argv=None):
         description     = h_description,
         add_help        = False)
     parse.add_argument('command',                   choices=vredis_command_types,   help=argparse.SUPPRESS)
-    parse.add_argument('-ho','--host',              default='localhost',            help=argparse.SUPPRESS)
-    parse.add_argument('-po','--port',              default=6379,                   help=argparse.SUPPRESS)
+    parse.add_argument('-ho','--host',              default=None,                   help=argparse.SUPPRESS)
+    parse.add_argument('-po','--port',              default=None,                   help=argparse.SUPPRESS)
     parse.add_argument('-pa','--password',          default=None,                   help=argparse.SUPPRESS)
-    parse.add_argument('-db','--db',                default=0,                      help=argparse.SUPPRESS)
+    parse.add_argument('-db','--db',                default=None,                   help=argparse.SUPPRESS)
     parse.add_argument('-wf','--workerfilter',      default='all',                  help=argparse.SUPPRESS)
     parse.add_argument('-ta','--taskid',            default=None,                   help=argparse.SUPPRESS)
-
+    parse.add_argument('-cl','--clear',             action='store_true',            help=argparse.SUPPRESS)
     _print_help(argv)
 
     args = parse.parse_args()
+
+    init_default(args)
     if   args.command == 'worker':  deal_with_worker(args)
     elif args.command == 'cmdline': deal_with_cmdline(args)
     elif args.command == 'stat':    deal_with_stat(args)
     elif args.command == 'stop':    deal_with_stop(args)
+    elif args.command == 'config':  deal_with_config(args)
+    # else: test_deal(args)
 
 if __name__ == '__main__':
     execute()
