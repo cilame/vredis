@@ -29,15 +29,29 @@ _o_conf = dict(
     db=0,
 )
 
-home = os.environ.get('HOME')
-home = home if home else os.environ.get('HOMEDRIVE') + os.environ.get('HOMEPATH')
-config = os.path.join(home,'.vredis')
-if not os.path.exists(config):
-    with open(config,'w',encoding='utf-8') as f:
-        f.write(json.dumps(defaults_conf,indent=4))
-else:
-    with open(config,encoding='utf-8') as f:
-        defaults_conf = json.load(f)
+try:
+    home = os.environ.get('HOME')
+    home = home if home else os.environ.get('HOMEDRIVE') + os.environ.get('HOMEPATH')
+    config = os.path.join(home,'.vredis')
+    if not os.path.exists(config):
+        with open(config,'w',encoding='utf-8') as f:
+            f.write(json.dumps(defaults_conf,indent=4))
+    else:
+        with open(config,encoding='utf-8') as f:
+            defaults_conf = json.load(f)
+except:
+    print('unlocal homepath.')
+    pass
+
+
+def init_default(args):
+    global defaults_conf
+    defaults_conf['host']    = defaults_conf.get('host')      if args.host == None else args.host
+    defaults_conf['port']    = defaults_conf.get('port')      if args.port == None else int(args.port)
+    defaults_conf['password']= defaults_conf.get('password')  if args.password == None else args.password
+    defaults_conf['db']      = defaults_conf.get('db')        if args.db == None else int(args.db)
+    # 优先本地配置，其次是config配置，最后才是默认配置
+
 
 description = '''
 usage
@@ -230,15 +244,6 @@ def deal_with_cmdline(args):
                                                      'VREDIS_FILTER_WORKERID':workerfilter}},loginfo=False)
             while not sd.logstop:
                 time.sleep(.15)
-
-
-def init_default(args):
-    global defaults_conf
-    defaults_conf['host']    = defaults_conf.get('host')      if args.host == None else args.host
-    defaults_conf['port']    = defaults_conf.get('port')      if args.port == None else int(args.port)
-    defaults_conf['password']= defaults_conf.get('password')  if args.password == None else args.password
-    defaults_conf['db']      = defaults_conf.get('db')        if args.db == None else int(args.db)
-    # 优先本地配置，其次是config配置，最后才是默认配置
 
 
 def deal_with_config(args):

@@ -2,6 +2,7 @@ import inspect
 import time
 import json
 import queue
+import os
 from threading import Thread, RLock
 
 
@@ -55,7 +56,7 @@ class Pipe:
         self.sender     = None
         self.script     = ''
         self.unstart    = True
-        self.settings   = {}
+        self.settings   = self.get_config_from_homepath()
         self.timestamp  = time.time()
 
         self.DEBUG      = False
@@ -65,6 +66,29 @@ class Pipe:
 
         self.taskqueue  = queue.Queue()
         self.lock       = RLock()
+
+
+    def get_config_from_homepath(self):
+        defaults_conf = dict(
+            host='localhost',
+            port=6379,
+            password=None,
+            db=0,
+        )
+        try:
+            home = os.environ.get('HOME')
+            home = home if home else os.environ.get('HOMEDRIVE') + os.environ.get('HOMEPATH')
+            config = os.path.join(home,'.vredis')
+            if not os.path.exists(config):
+                return {}
+            else:
+                with open(config,encoding='utf-8') as f:
+                    defaults_conf = json.load(f)
+        except:
+            print('unlocal homepath.')
+            defaults_conf = {}
+        return defaults_conf
+
 
     def from_settings(self,**settings):
         # 这里的配置可以有 redis 库里面 redis 类实例化所需要的各个参数
@@ -97,7 +121,7 @@ class Pipe:
                 self.timestamp = time.time()
             with self.lock:
                 if self.unstart:
-                    self.sender = self.sender if self.sender is not None else Sender()
+                    self.sender = self.sender if self.sender is not None else Sender.from_settings(**self.settings)
                     self.tid    = self.sender.get_taskid()
                     self.sender.rds.hset(defaults.VREDIS_WORKER, '{}@stamp'.format(self.tid), int(time.time()))
                     if self.QUICK_SEND:
@@ -187,7 +211,7 @@ class Pipe:
         assert method in ['pop', 'range']
         if self.sender is None:
             print('[ WAINING ]: use localhost redis .')
-        self.sender = self.sender if self.sender is not None else Sender()
+        self.sender = self.sender if self.sender is not None else Sender.from_settings(**self.settings)
         return _Table(self.sender, taskid, table, method)
 
 
@@ -200,7 +224,7 @@ class Pipe:
     def get_stat(self, taskid):
         if self.sender is None:
             print('[ WAINING ]: use localhost redis .')
-        self.sender = self.sender if self.sender is not None else Sender()
+        self.sender = self.sender if self.sender is not None else Sender.from_settings(**self.settings)
         v = self.sender.get_stat(taskid)
         if v is None:
             print('no stat taskid:{}.'.format(taskid))
@@ -226,6 +250,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.0.11'
+__version__ = '1.1.0'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'
