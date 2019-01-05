@@ -216,7 +216,7 @@ class Pipe:
             port = self.settings.get('port',6379)
             print('[ INFO ]: use defaults host:{}, port:{}.'.format(host,port))
         self.sender = self.sender if self.sender is not None else Sender.from_settings(**self.settings)
-        return _Table(self.sender, taskid, table, method, limit)
+        return _Table(self.sender, taskid, table, method, limit=limit)
 
 
     def get_stat(self, taskid):
