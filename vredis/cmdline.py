@@ -6,13 +6,13 @@ import os
 import json
 
 from . import defaults
-from .__init__ import __version__
+from .__init__ import __version__, _Table
 from .worker import Worker
 from .sender import Sender
 
 vredis_command_types = defaults.VREDIS_COMMAND_TYPES
 vredis_command_types.remove('script') 
-vredis_command_types = vredis_command_types + ['worker','stat','stop','config','version']
+vredis_command_types = vredis_command_types + ['worker','stat','stop','config','dump','version']
 
 
 
@@ -63,11 +63,13 @@ command
   cmdline   use cmdline connect host. and sent simple bash command.
   stat      use taskid check task work stat.
   stop      use taskid stop a task.
+  dump      use taskid dump data that the task is finish.
   config    config default host,port,password,db
   version   check vredis version
   <command> -h|--help   ::show subcommand info
 {}
 defaults
+  type<param>
   -ho,--host            ::redis host.           default: localhost
   -po,--port            ::redis port.           default: 6379
   -pa,--password        ::redis password.       default: None
@@ -76,6 +78,17 @@ defaults
                         ||this parameter can only work in cmdline mode.
   -ta,--taskid          ::check task work stat  default: None
                         ||this parameter can only work in stat mode.
+  -li,--limit           ::dump data limit       default: -1 (all)
+                        ||this parameter can only work in dump mode.
+  -sp,--space           ::dump data space       default: 'default'
+                        ||this parameter can only work in dump mode.
+                        ||if not set, use default store space.
+                        ||usually, you don't have to change the name here.
+  -fi,--file            ::dump data filename
+                        ||this parameter can only work in dump mode.
+                        ||if set, try dump data in a file
+                        ||if not set, just get data and show it in console.
+  type<toggle>
   -cl,--clear           ::clear config, use initial configuration.
                         ||this parameter can only work in config mode.
 
@@ -105,6 +118,20 @@ stat_description = '''
 stop_description = '''
   stop                  ::[eg.] "vredis stop -ta 26"
     -ta --taskid        ||this parameter can work in stop mode
+'''
+
+dump_description = '''
+  dump                  ::[eg.] "vredis stop -ta 26"
+    -li,--limit         ::dump data limit       default: -1 (all)
+                        ||this parameter can only work in dump mode.
+    -sp,--space         ::dump data space       default: 'default'
+                        ||this parameter can only work in dump mode.
+                        ||if not set, use default store space.
+                        ||usually, you don't have to change the name here.
+    -fi,--file          ::dump toggle
+                        ||this parameter can only work in dump mode.
+                        ||if set, try dump data in a file
+                        ||if not set, just get data and show it in console.
 '''
 
 worker_description = '''
@@ -142,6 +169,7 @@ h_description = re.sub('\{\}','',description).strip()
 help_description = description.format(''.join([cmdline_description,
                                                stat_description,
                                                stop_description,
+                                               dump_description,
                                                worker_description,
                                                config_description])).strip()
 
@@ -165,7 +193,7 @@ def deal_with_worker(args):
     password= defaults_conf.get('password')
     db      = defaults_conf.get('db')
     print('[ REDIS ] host:{}, port:{}'.format(host,port))
-    wk = Worker.from_settings(host=host,port=port,password=password,db=db)
+    wk      = Worker.from_settings(host=host,port=port,password=password,db=db)
     wk.start()
 
 
@@ -178,13 +206,50 @@ def deal_with_stop(args):
         print('pls set param:taskid for stop task.')
         print('[eg.] "vredis stop -ta 23"')
         return
-    taskid      = int(args.taskid)
-    _rname      = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+    taskid  = int(args.taskid)
+    _rname  = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
     print('[ REDIS ] host:{}, port:{}'.format(host,port))
-    sd          = Sender.from_settings(host=host,port=port,password=password,db=db)
+    sd      = Sender.from_settings(host=host,port=port,password=password,db=db)
     sd.rds.hset(defaults.VREDIS_WORKER, '{}@inter'.format(taskid), 0)
     sd.rds.ltrim(_rname,0,0)
     print('task {} ready to stop.'.format(taskid))
+
+
+def deal_with_dump(args):
+    host    = defaults_conf.get('host')
+    port    = defaults_conf.get('port')
+    password= defaults_conf.get('password')
+    db      = defaults_conf.get('db')
+    limit   = int(args.limit) # -1 all
+    space   = args.space # 'default'
+    file    = args.file # None
+    if args.taskid is None:
+        print('pls set param:taskid for dump task.')
+        print('[eg.] "vredis dump -ta 23 -li 100 -fi some.json"')
+        return
+    taskid  = int(args.taskid)
+    tablespace = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, space)
+    print('[ REDIS ] host:{}, port:{}'.format(host,port))
+    sd      = Sender.from_settings(host=host,port=port,password=password,db=db)
+    print('[ TABLE ] space:{}.'.format(space))
+    print('[ TABLE ] all number:{}.'.format(sd.rds.llen(tablespace)))
+
+    if file is not None:
+        path,name = os.path.split(file)
+        path      = path if path.strip() else os.getcwd()
+        filepath  = os.path.join(path,name)
+        with open(filepath,'a',encoding='utf-8') as f:
+            f.write('[\n')
+            idx = 0
+            for idx,data in enumerate(_Table(sd, taskid, space, 'range', limit=limit),1):
+                if idx%5000==0 and idx!=0:
+                    print('dump number:{}.'.format(idx))
+                f.write(json.dumps(data)+',\n')
+            print('dump number:{}.'.format(idx))
+            f.write(']')
+    else:
+        for data in _Table(sd, taskid, space, 'range', limit=limit):
+            print(data)
 
 
 def deal_with_version(args):
@@ -200,12 +265,12 @@ def deal_with_stat(args):
         print('pls set param:taskid for check task stat.')
         print('[eg.] "vredis stat -ta 23"')
         return
-    taskid      = int(args.taskid)
-    info        = '[ REDIS ]'+'{:>36}'.format('host: {}, port: {}'.format(host,port))
+    taskid  = int(args.taskid)
+    info    = '[ REDIS ]'+'{:>36}'.format('host: {}, port: {}'.format(host,port))
     print(info)
     print('='*45)
-    sd          = Sender.from_settings(host=host,port=port,password=password,db=db)
-    dt          = sd.get_stat(taskid)
+    sd      = Sender.from_settings(host=host,port=port,password=password,db=db)
+    dt      = sd.get_stat(taskid)
     if dt is None:
         print('no stat taskid:{}.'.format(taskid))
     else:
@@ -300,14 +365,18 @@ def execute(argv=None):
         formatter_class = argparse.RawDescriptionHelpFormatter,
         description     = h_description,
         add_help        = False)
-    parse.add_argument('command',                   choices=vredis_command_types,   help=argparse.SUPPRESS)
-    parse.add_argument('-ho','--host',              default=None,                   help=argparse.SUPPRESS)
-    parse.add_argument('-po','--port',              default=None,                   help=argparse.SUPPRESS)
-    parse.add_argument('-pa','--password',          default=None,                   help=argparse.SUPPRESS)
-    parse.add_argument('-db','--db',                default=None,                   help=argparse.SUPPRESS)
-    parse.add_argument('-wf','--workerfilter',      default='all',                  help=argparse.SUPPRESS)
-    parse.add_argument('-ta','--taskid',            default=None,                   help=argparse.SUPPRESS)
-    parse.add_argument('-cl','--clear',             action='store_true',            help=argparse.SUPPRESS)
+    vct = vredis_command_types
+    parse.add_argument('command',               choices=vct,        help=argparse.SUPPRESS)
+    parse.add_argument('-ho','--host',          default=None,       help=argparse.SUPPRESS)
+    parse.add_argument('-po','--port',          default=None,       help=argparse.SUPPRESS)
+    parse.add_argument('-pa','--password',      default=None,       help=argparse.SUPPRESS)
+    parse.add_argument('-db','--db',            default=None,       help=argparse.SUPPRESS)
+    parse.add_argument('-wf','--workerfilter',  default='all',      help=argparse.SUPPRESS)
+    parse.add_argument('-ta','--taskid',        default=None,       help=argparse.SUPPRESS)
+    parse.add_argument('-cl','--clear',         action='store_true',help=argparse.SUPPRESS)
+    parse.add_argument('-li','--limit',         default=-1,         help=argparse.SUPPRESS)
+    parse.add_argument('-sp','--space',         default='default',  help=argparse.SUPPRESS)
+    parse.add_argument('-fi','--file',          default=None,       help=argparse.SUPPRESS)
     _print_help(argv)
 
     args = parse.parse_args()
@@ -318,7 +387,8 @@ def execute(argv=None):
     elif args.command == 'stat':    deal_with_stat(args)
     elif args.command == 'stop':    deal_with_stop(args)
     elif args.command == 'config':  deal_with_config(args)
-    elif args.command == 'version':  deal_with_version(args)
+    elif args.command == 'version': deal_with_version(args)
+    elif args.command == 'dump':    deal_with_dump(args)
     # else: test_deal(args)
 
 if __name__ == '__main__':

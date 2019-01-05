@@ -43,13 +43,31 @@ class _Table:
         lens = self.sender.rds.llen(table)
         if lens == 0:
             print('no data. tablename: "{}".'.format(table))
+            return
+        lens = lens if self.limit == -1 else min(lens, self.limit)
         if self.method == 'pop':
             for _ in range(lens):
                 _, ret = self.sender.rds.brpop(table, defaults.VREDIS_DATA_TIMEOUT)
                 yield json.loads(ret)
         elif self.method == 'range':
-            for ret in self.sender.rds.lrange(table,0,self.limit):
-                yield json.loads(ret)
+            # 对于 range 方法取数据必须要切割去取，否则当 data 数据过多时取数据会卡住任务。
+            # 所以这里以 500 为一个缓冲区进行切割取数据。这个参数后续要不要暴露出去就看心情吧，
+            # 因为感觉配置参数太多了。
+            splitnum = 500
+            q = []
+            for i in range(int(lens/splitnum)):
+                v = [i*splitnum, i*splitnum+splitnum] if i==0 else [i*splitnum+1, i*splitnum+splitnum]
+                q.append(v)
+            if lens%splitnum != 0:
+                if q:
+                    q.append([q[-1][-1]+1, q[-1][-1]+lens%splitnum-1])
+                else:
+                    q.append([0,lens-1])
+            else:
+                q[-1][-1] = q[-1][-1] - 1
+            for start,end in q:
+                for ret in self.sender.rds.lrange(table,start,end):
+                    yield json.loads(ret)
 
 
 class Pipe:
