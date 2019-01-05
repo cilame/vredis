@@ -49,7 +49,7 @@ class Sender(common.Initer):
 
     def process_stop(self):
         def log_start():
-            print('[ use CTRL+PAUSE to break ]')
+            print('[ use CTRL+PAUSE(win)/ALT+PAUSE(linux) to break ]')
             print('[ORDER]:')
             print(re.sub('"VREDIS_SCRIPT": "[^\n]+"', '"VREDIS_SCRIPT": "..."',json.dumps(self.order, indent=4)))
             assert self.order['order']['settings'] is not None

@@ -161,7 +161,7 @@ C:\Users\Administrator>vredis --help
 # 主要用来 pip 安装一些远端没有的库函数。目前请勿传输会中途需要卡住 bash的指令，例如任意会弹出 y/n 的指令。
 
 PS C:\Users\Administrator\Desktop\vredis> vredis cmdline -ho xx.xx.xx.xx -po 6666 -pa vredis -db 0
-[ use CTRL+PAUSE to break ]
+[ use CTRL+PAUSE(win)/ALT+PAUSE(linux) to break ]
 cmd/
 ```
 

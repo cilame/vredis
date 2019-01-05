@@ -10,7 +10,7 @@ from _test_config import host,password
 
 from vredis import pipe
 
-pipe.connect(host=host,port=6379,password=password)
+#pipe.connect(host=host,port=6379,password=password)
 #pipe.from_settings(VREDIS_LIMIT_LOG_WORKER_NUM=10) # 队列过多时默认只显示前10条workerid，如需显示完整需要修改这里。
 pipe.DEBUG = True # worker端是否进行控制台打印。(默认False)
 #pipe.LOG_ITEM = False # 是否进行item数据打印显示。(默认False)

@@ -6,12 +6,13 @@ import os
 import json
 
 from . import defaults
+from .__init__ import __version__
 from .worker import Worker
 from .sender import Sender
 
 vredis_command_types = defaults.VREDIS_COMMAND_TYPES
 vredis_command_types.remove('script') 
-vredis_command_types = vredis_command_types + ['worker','stat','stop','config']
+vredis_command_types = vredis_command_types + ['worker','stat','stop','config','version']
 
 
 
@@ -63,6 +64,7 @@ command
   stat      use taskid check task work stat.
   stop      use taskid stop a task.
   config    config default host,port,password,db
+  version   check vredis version
   <command> -h|--help   ::show subcommand info
 {}
 defaults
@@ -183,6 +185,10 @@ def deal_with_stop(args):
     sd.rds.hset(defaults.VREDIS_WORKER, '{}@inter'.format(taskid), 0)
     sd.rds.ltrim(_rname,0,0)
     print('task {} ready to stop.'.format(taskid))
+
+
+def deal_with_version(args):
+    print('vredis verison: {}'.format(__version__))
 
 
 def deal_with_stat(args):
@@ -312,6 +318,7 @@ def execute(argv=None):
     elif args.command == 'stat':    deal_with_stat(args)
     elif args.command == 'stop':    deal_with_stop(args)
     elif args.command == 'config':  deal_with_config(args)
+    elif args.command == 'version':  deal_with_version(args)
     # else: test_deal(args)
 
 if __name__ == '__main__':

@@ -14,7 +14,7 @@ from .error import SenderAlreadyStarted,NotInDefaultType
 
 
 class _Table:
-    def __init__(self, sender, taskid, table, method, ignore_stop=False):
+    def __init__(self, sender, taskid, table, method, ignore_stop=False, limit=-1):
         self.sender = sender
         self.taskid = taskid
         self.table  = table
@@ -47,7 +47,7 @@ class _Table:
                 _, ret = self.sender.rds.brpop(table, defaults.VREDIS_DATA_TIMEOUT)
                 yield json.loads(ret)
         elif self.method == 'range':
-            for ret in self.sender.rds.lrange(table,0,lens):
+            for ret in self.sender.rds.lrange(table,0,limit):
                 yield json.loads(ret)
 
 
@@ -206,24 +206,23 @@ class Pipe:
         # 简约版的配置方法，后期为了对某些功能连锁，可能会改。
         return lambda func: self.__call__(func, **{'table':table})
 
-    def from_table(self, taskid, table=defaults.VREDIS_DATA_DEFAULT_TABLE, method='range'):
+    def from_table(self, taskid, table=defaults.VREDIS_DATA_DEFAULT_TABLE, method='range', limit=-1):
         # 预计的开发在这里需要返回一个类，这个类绑定了简单的数据取出的方法。重载迭代的方法。
+        # limit 参数只能在 method=range 情况下才能使用。
         assert method in ['pop', 'range']
         if self.sender is None:
-            print('[ WAINING ]: use localhost redis .')
+            host = self.settings.get('host','localhost')
+            port = self.settings.get('port',6379)
+            print('[ INFO ]: use defaults host:{}, port:{}.'.format(host,port))
         self.sender = self.sender if self.sender is not None else Sender.from_settings(**self.settings)
-        return _Table(self.sender, taskid, table, method)
+        return _Table(self.sender, taskid, table, method, limit)
 
-
-    def task_is_stop(self, taskid):
-        # 分段处理时可以考虑发送多次任务。
-        # 开发时，等待A任务关闭时再从A任务收集到数据的管道内获取数据拖下来进行B任务我觉得这样获取会更整洁一些
-        # 不过这样有点不好的就是这种是广度优先的任务。以后再看吧。
-        pass
 
     def get_stat(self, taskid):
         if self.sender is None:
-            print('[ WAINING ]: use localhost redis .')
+            host = self.settings.get('host','localhost')
+            port = self.settings.get('port',6379)
+            print('[ INFO ]: use defaults host:{}, port:{}.'.format(host,port))
         self.sender = self.sender if self.sender is not None else Sender.from_settings(**self.settings)
         v = self.sender.get_stat(taskid)
         if v is None:
@@ -250,6 +249,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.1.1'
+__version__ = '1.1.2'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'
