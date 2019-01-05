@@ -19,6 +19,7 @@ class _Table:
         self.taskid = taskid
         self.table  = table
         self.method = method
+        self.limit  = limit
         self.ignore_stop = ignore_stop
 
     def __iter__(self):
@@ -47,7 +48,7 @@ class _Table:
                 _, ret = self.sender.rds.brpop(table, defaults.VREDIS_DATA_TIMEOUT)
                 yield json.loads(ret)
         elif self.method == 'range':
-            for ret in self.sender.rds.lrange(table,0,limit):
+            for ret in self.sender.rds.lrange(table,0,self.limit):
                 yield json.loads(ret)
 
 
