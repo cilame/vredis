@@ -21,3 +21,7 @@ class UndevelopmentSubcommand(Exception):
 
 class SenderAlreadyStarted(Exception):
     pass
+
+class PathNotExists(Exception):
+    pass
+

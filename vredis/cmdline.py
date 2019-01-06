@@ -9,6 +9,7 @@ from . import defaults
 from .__init__ import __version__, _Table
 from .worker import Worker
 from .sender import Sender
+from .error import PathNotExists
 
 vredis_command_types = defaults.VREDIS_COMMAND_TYPES
 vredis_command_types.remove('script') 
@@ -237,15 +238,31 @@ def deal_with_dump(args):
     if file is not None:
         path,name = os.path.split(file)
         path      = path if path.strip() else os.getcwd()
+        if not os.path.exists(path):
+            raise PathNotExists(path)
         filepath  = os.path.join(path,name)
         with open(filepath,'a',encoding='utf-8') as f:
             f.write('[\n')
             idx = 0
-            for idx,data in enumerate(_Table(sd, taskid, space, 'range', limit=limit),1):
-                if idx%5000==0 and idx!=0:
-                    print('dump number:{}.'.format(idx))
-                f.write(json.dumps(data)+',\n')
-            print('dump number:{}.'.format(idx))
+            TABLE = iter(_Table(sd, taskid, space, 'range', limit=limit))
+            logidx = []
+            pre = None
+            while True:
+                try:
+                    data = next(TABLE)
+                    if pre is not None: 
+                        f.write(pre+',\n')
+                    idx += 1
+                    if idx%5000==0 and idx!=0:
+                        print('all dump number:{}.'.format(idx))
+                        logidx.append(idx)
+                    pre = json.dumps(data)
+                except StopIteration:
+                    if idx != 0: 
+                        f.write(pre+'\n') # 最后一行不加逗号
+                    break
+            if idx not in logidx: 
+                print('all dump number:{}.'.format(idx))
             f.write(']')
     else:
         for data in _Table(sd, taskid, space, 'range', limit=limit):
