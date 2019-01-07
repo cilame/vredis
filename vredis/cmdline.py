@@ -295,7 +295,7 @@ def deal_with_stat(args):
         a = dt.pop('all')
         kt = sorted(dt,key=lambda i:int(i))
         fmt = '{:>9}'*5
-        print(fmt.format('taskid','collect','execute','fail','stop'))
+        print(fmt.format('workerid','collect','execute','fail','stop'))
         print(fmt.format(*['------']*5))
         for idx,key in enumerate(kt):
             value = dt[key]
