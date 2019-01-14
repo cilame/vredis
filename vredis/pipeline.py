@@ -160,7 +160,13 @@ def from_pipeline_data(cls, taskid, table='default'):
 
 # 数据传递需要给一个名字来指定数据的管道，因为可能一次任务中需要收集n种数据。
 def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
-    if data is None: 
+    _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, table)
+    _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, cls.workerid)
+    _sname_c = '{}:{}:{}'.format(defaults.VREDIS_TASK_STATE, taskid, cls.workerid)
+
+    if data is None:
+        # 无收集数据时进行的数据清尾工作
+        cls.rds.lrem(_cname, 1, ret)
         cls.rds.hincrby(_sname_c,'execute',1)
         return
 
@@ -185,8 +191,6 @@ def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
         raise NotInDefaultType('{} not in defaults type:{}.'.format(
                         type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))
 
-    _rname = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, table)
-    _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, cls.workerid)
     n = 0
     with cls.rds.pipeline() as pipe:
         pipe.multi()
@@ -199,6 +203,5 @@ def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
         pipe.lrem(_cname, -1, ret)
         pipe.execute()
 
-    _sname_c = '{}:{}:{}'.format(defaults.VREDIS_TASK_STATE, taskid, cls.workerid)
     cls.rds.hincrby(_sname_c,'collection',n)
     cls.rds.hincrby(_sname_c,'execute',1)

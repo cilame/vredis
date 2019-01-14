@@ -82,9 +82,13 @@ class Pipe:
         self.KEEPALIVE  = True
         self.LOG_ITEM   = False
         self.QUICK_SEND = True
+        self.SPLIT_CNT  = 30000 # 当单片任务全部由 sender 端发送时则需要显示当前发送任务量。
 
         self.taskqueue  = queue.Queue()
         self.lock       = RLock()
+        self.tlock      = 0
+        self.send_cnt   = 0
+        
 
 
     def get_config_from_homepath(self):
@@ -161,17 +165,22 @@ class Pipe:
         return _wrapper
 
 
-
-
     # 线程池，主要用于快速提交任务使用
     def quicker(self):
         def _sender():
+            with self.lock: self.tlock += 1
             while True:
                 try:
                     taskid, function_name, args, kwargs, plus, keepalive = self.taskqueue.get(timeout=2)
                     self.sender.send_execute(taskid, function_name, args, kwargs, plus, keepalive)
+                    with self.lock: self.send_cnt += 1
+                    if self.send_cnt % self.SPLIT_CNT == 0 and self.send_cnt != 0:
+                        print('{} tasks have been sent.'.format(self.send_cnt))
                 except:
                     if time.time() - self.timestamp > 2:
+                        with self.lock: self.tlock -= 1
+                        if self.tlock == 0:
+                            print('{} tasks have been sent.'.format(self.send_cnt))
                         break
                     time.sleep(.15)
         for _ in range(defaults.VREDIS_SENDER_THREAD_SEND):
@@ -268,6 +277,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.1.4'
+__version__ = '1.1.5'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'
