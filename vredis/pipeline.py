@@ -160,7 +160,9 @@ def from_pipeline_data(cls, taskid, table='default'):
 
 # 数据传递需要给一个名字来指定数据的管道，因为可能一次任务中需要收集n种数据。
 def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
-    if data is None: return
+    if data is None: 
+        cls.rds.hincrby(_sname_c,'execute',1)
+        return
 
     def mk_sdata(data):
         return json.dumps({'taskid': taskid, 'data': data,})
