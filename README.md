@@ -1,12 +1,43 @@
 
 ##### 只需部署一个 redis ，便可轻松使用分布式。
 
-```
-一个极其方便基于 redis 的多任务分布式 python 脚本执行的函数库。
-其最大的特点就是与一般脚本几乎无缝衔接（一个装饰器即可将函数分布式化）
-并且支持多任务下的实时任务信息回显！！！
-    # 当你提交的多个任务中有 print 函数输出，错误信息输出，都能分别回显。
-    # 多任务同时执行也会根据任务 ID 进行回传信息的分发。保证多人开发时不冲突。
+- ##### 一个最简单的分布式
+
+```python
+该分布式框架只有任务发送端和任务伺服端。
+所以你只需要有一个正常的 redis 服务器。
+然后使用下面的方式部署就可以使用。
+仅依赖安装 redis 库。
+开发于 python3.6 版本。
+
+
+发送端和任务端都需要执行配置的部分。
+cmd>pip install vredis.py
+  # 安装。安装后会自动生成一个 vredis 的命令行工具，通过工具配置 redis信息。
+cmd>vredis config --host xx.xx.xx.xx --port --password xxxxx
+  # 在第二步如果有更多的链接redis的配置就按照vreids的说明配置即可。
+
+
+【 部署工作端 】：
+    cmd>vredis worker
+    # 启动任务端。（如果是linux可以在命令后加 &后台启动 “vredis worker &”）
+    # 配置后启动任务端便可以让任何带有 python 平台变成你的任务机。
+【 任务发送端 】：
+    # 下面是一个最简单的分布式脚本 test.py
+    from vredis import pipe
+    @pipe
+    def do_something(a,b):
+        print(a+b)
+    for i in range(1000):
+        do_something(i,i**3) 
+    # 被装饰的函数变成发送任务函数，将函数发送到待执行任务队列中，由服务机执行。
+    # 执行脚本的时候会有输出一个任务taskid
+    # 后续根据taskid来查询任务执行情况或者，获取任务收集到的数据。
+
+
+检查任务执行的状况：
+    >vredis stat --taskid xx
+    # 根据任务id查看任务执行情况
 ```
 
 - ##### 安装方式
