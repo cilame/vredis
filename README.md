@@ -3,19 +3,21 @@
 
 - ##### 一个最简单的分布式
 
-```python
-该分布式框架只有任务发送端和任务伺服端。
-所以你只需要有一个正常的 redis 服务器。
-然后使用下面的方式部署就可以使用。
-仅依赖安装 redis 库。
-开发于 python3.6 版本。
+```bash
+# 该分布式框架只有任务发送端和任务伺服端。
+# 所以你只需要有一个正常的 redis 服务器。
+# 然后使用下面的方式部署就可以使用。
+# 仅依赖安装 redis 库。
+# 开发于 python3.6 版本。
 
 
-发送端和任务端都需要执行配置的部分。
-cmd>pip install vredis.py
-  # 安装。安装后会自动生成一个 vredis 的命令行工具，通过工具配置 redis信息。
-cmd>vredis config --host xx.xx.xx.xx --port --password xxxxx
-  # 在第二步如果有更多的链接redis的配置就按照vreids的说明配置即可。
+【 基础配置 】：
+    # 无论发送端和工作端都需要进行这两项配置
+    # 安装。安装后会自动生成一个 vredis 的命令行工具，通过工具配置 redis信息。
+    cmd>pip install vredis.py
+    cmd>vredis config --host xx.xx.xx.xx --port --password xxxxx
+    # 在第二步如果有更多的链接redis的配置就按照vreids的说明配置即可。
+    # vredis config 命令后面不添加配置内容，则仅仅显示当前配置。
 
 
 【 部署工作端 】：
@@ -80,7 +82,7 @@ from vredis import pipe
 
 # 这里的 pipe 是实例，是延迟连接 redis 的开发方式。
 # 只要用 pipe 这个实例 connect 就可以连接上服务器。
-# 如果什么都不写，甚至不写 pipe.connect(...) 这一行，那么就会从配置里面去取数据
+# 如果什么都不写，甚至不写下面的 pipe.connect(...) 这一行，那么就会从配置里面去取数据
 # vredis 会在 “开始执行任务” 后再连接 localhost:6379 无密码，db=0.（这是初始化配置）
 # 不过如果在 HOME 工作目录下创建一个 .vredis 的配置文件，那么就会这个配置文件里面读默认配置
 # 这里面的配置可以通过命令行工具修改，这样的话，真的就只需要一行代码就能实现脚本化的分布式代码了。
@@ -100,7 +102,6 @@ pipe.connect(host='47.99.126.229',port=6379,password='vredis')
 #  实时回显的模式：
 #  实时回显的模式下，如果脚本关闭，则任务 worker 端就会中断相应的 taskid 任务。
 #  开发时 KEEPALIVE=True 的默认模式是最方便调试、也是最不容易浪费资源的一种方式。
-#  提交模式后面会有说到。
 #  提交任务模式：
 #  对于一些人来说只想把任务提交上去就等待任务执行，不需要挂钩发送端是否存活，想让任务发送完就让脚本停止。
 #  那么这也很简单，只需要关闭保持连接的标记即可（pipe.KEEPALIVE = False，这里的代码要在函数发送前配置），
@@ -119,7 +120,7 @@ pipe.connect(host='47.99.126.229',port=6379,password='vredis')
 #  由于之前都没有出现过该问题，只在这次测试有这个问题。并且，
 #  检查日志文件发现是内存不够的问题，总之这个任务的开启在测试中的结论是，
 #  多线程提交会稍微增加 redis 内存负担，如果想要单线程提交，
-#  设置 pipe 配置参数 QUICK_SEND 为 False 即可，也可以考虑增加内存。
+#  设置 pipe 配置参数 QUICK_SEND 为 False 即可，最简单方式就是升级服务器配置，增加内存。
 
 
 
@@ -167,14 +168,24 @@ for i in range(100):
     some2(i)
 ```
 
-- ##### 数据的提取的脚本编写
+- ##### 数据的提取
 
-```python
+```bash
+# 推荐使用命令行提取数据，获取默认传入redis的数据必须配置taskid
+# limit是数量显示，从后往前获取搜集到的数据的数量限制
+# 如果不设置 --file 则默认控制台输出，如果设置则写入文件
+# --file 绝对路径和相对路径。
+# 输出的文件格式类似于 scrapy 框架的默认写文件的
+cmd>vredis dump --taskid 19 --limit 10
+cmd>vredis dump --taskid 19 --limit 10 --file 123.txt
+
+
+# 使用脚本的方式提取数据
 from vredis import pipe
-pipe.connect(host='47.99.126.229',port=6379,password='vredis')
-for i in pipe.from_table(taskid=29):
+# pipe.connect(host='47.99.126.229',port=6379,password='vredis')
+# 是否pipe.connect(...)取决于你是否通过 vredis 工具配置了redis链接的配置
+for i in pipe.from_table(taskid=19):
     print(i)
-
 # 任务不结束不能抽取数据，会出直接抛出异常
 # from_table 的第二个参数就可以传入 table 的名字，也就是存储的命名空间
 # 默认是以 method='range' 方式提取数据，取完数据后，数据还是会占用 redis 的存储空间。
@@ -184,16 +195,14 @@ for i in pipe.from_table(taskid=29):
 - ##### 命令行执行的方式
 
 ```bash
-C:\Users\Administrator>vredis --help
-
-# 直接输入 --help 就已经能看全部的详细文档，也不必详述。不过，这里主要想说的是
-# 对于一些简单的命令行操作，可以通过 cmdline 指令连接上之后就能直接输入命令行指令让远端机器执行
-# 通过连接可以得到一个非常简陋的类 bash 的指令传输区，在 cmd/ 后面直接输入指令就能传递执行
-# 主要用来 pip 安装一些远端没有的库函数。目前请勿传输会中途需要卡住 bash的指令，例如任意会弹出 y/n 的指令。
-
-PS C:\Users\Administrator\Desktop\vredis> vredis cmdline -ho xx.xx.xx.xx -po 6666 -pa vredis -db 0
+PS C:\Users\Administrator\Desktop\vredis> vredis cmdline
 [ use CTRL+PAUSE(win)/ALT+PAUSE(linux) to break ]
 cmd/
+
+# 在该cmdline的情况下传输命令行。
+# 测试中，在window上能够通过pip进行对库的安装，但是在linux上暂时不行。
+# 同时，在该处有两个特别的命令 ls/list
+# 这两个命令被覆盖为“输出每个工作段的机器型号”。
 ```
 
 - ##### 如何检查你的任务情况
@@ -201,6 +210,7 @@ cmd/
 ```bash
 # 因为 --help 文档里面已经写的很详细了，所以这里就给一个简单的指令模板以及其执行的结果作为参考。
 # vredis stat 指令必须要添加 -ta,--taskid 参数来指定需要检查的任务id。
+# 其他的配置在默认配置里面有的话就可以不用写，如果没有，可以直接在命令行中添加。
 
 C:\Users\Administrator>vredis stat -ho xx.xx.xx.xx -po 6666 -pa vredis -db 0 -ta 23
 [ REDIS-SERVER ] host:47.99.126.229, port:6379
@@ -266,11 +276,9 @@ current defaults [use -cl/--clear clear this settings]:
     也就是说，你只要让别人下载该库然后用上面的示例连接上这个 redis，就能用他们的计算机作为你的分布式资源的一部分。
     并且，考虑到 worker 端可能意外断开的情况，所以设计了任务缓冲区进行对任务完整性的保护。
 4 简单的日志信息
-    例如你想看23号任务的执行情况你可以在安装工具后使用 "vredis stat -ta 23" 指令查看（默认查看本机redis）
-    当然，你的 redis-server 配置不一样的话，就需要在命令行里面配置 redis-server 的信息。
-    类似下面的指令：
-    "vredis stat -ta 23 -ho xx.xx.xx.xx -po 6666 -pa vredis -db 0"
-    "vredis stat -ta 23 --host xx.xx.xx.xx -port 6666 -password vredis --db 0"
+    例如你想看23号任务的执行情况你可以在安装工具后使用 "vredis stat -ta 23" 指令查看（通过默认redis配置查看）
 
-只要一个 redis 服务器，你就可以让任何能连上分布式的电脑变成你分布式的一部分。
+因为有任务安全、部署简单这两点，所有有一个最大的优势：
+    只需一个redis服务器，你可以以最快的速度搜集闲散资源来实现你的分布式。
+    手机上如果有装termux一类的类linux系统的工具app，你甚至可以用手机作为你的分布式工作端！
 ```
