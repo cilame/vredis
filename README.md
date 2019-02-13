@@ -15,8 +15,8 @@
     # 无论发送端和工作端都需要进行这两项配置
     # 安装。安装后会自动生成一个 vredis 的命令行工具，通过工具配置 redis信息。
     cmd>pip install vredis.py
-    cmd>vredis config --host xx.xx.xx.xx --port --password xxxxx
-    # 在第二步如果有更多的链接redis的配置就按照vreids的说明配置即可。
+    cmd>vredis config --host xx.xx.xx.xx --password xxxxx
+    # 在第二步如果有更多的连接redis的配置就按照vreids的说明配置即可。
     # vredis config 命令后面不添加配置内容，则仅仅显示当前配置。
 
 
@@ -183,7 +183,7 @@ cmd>vredis dump --taskid 19 --limit 10 --file 123.txt
 # 使用脚本的方式提取数据
 from vredis import pipe
 # pipe.connect(host='47.99.126.229',port=6379,password='vredis')
-# 是否pipe.connect(...)取决于你是否通过 vredis 工具配置了redis链接的配置
+# 是否pipe.connect(...)取决于你是否通过 vredis 工具配置了redis连接的配置
 for i in pipe.from_table(taskid=19):
     print(i)
 # 任务不结束不能抽取数据，会出直接抛出异常
