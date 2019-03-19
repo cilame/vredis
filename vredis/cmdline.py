@@ -67,7 +67,6 @@ command
   dump      use taskid dump data that the task is finish.
   config    config default host,port,password,db
   version   check vredis version
-  <command> -h|--help   ::show subcommand info
 {}
 defaults
   type<param>
@@ -80,7 +79,7 @@ defaults
   -ta,--taskid          ::check task work stat  default: None
                         ||this parameter can only work in stat mode.
   -li,--limit           ::dump data limit       default: -1 (all)
-                        ||this parameter can only work in dump mode.
+                        ||this parameter can only work in (dump,stat) mode.
   -sp,--space           ::dump data space       default: 'default'
                         ||this parameter can only work in dump mode.
                         ||if not set, use default store space.
@@ -90,6 +89,8 @@ defaults
                         ||if set, try dump data in a file
                         ||if not set, just get data and show it in console.
   type<toggle>
+  -ls,--list            ::list for check latest N task simple stat.
+                        ||this parameter can only work in stat
   -cl,--clear           ::clear config, use initial configuration.
                         ||this parameter can only work in config mode.
 
@@ -113,25 +114,27 @@ cmdline_description = '''
 
 stat_description = '''
   stat                  ::[eg.] "vredis stat -ta 26"
-    -ta --taskid        ||this parameter can work in stat mode
+    -ta,--taskid        ||this parameter can work in stat mode
+    -ls,--list          ::this parameter can work in stat
+                        ||list check cannot coexist with single task check
 '''
 
 stop_description = '''
   stop                  ::[eg.] "vredis stop -ta 26"
-    -ta --taskid        ||this parameter can work in stop mode
+    -ta,--taskid        ||this parameter can work in stop mode
 '''
 
 dump_description = '''
-  dump                  ::[eg.] "vredis stop -ta 26"
+  dump                  ::[eg.] "vredis dump -ta 26"
     -li,--limit         ::dump data limit       default: -1 (all)
-                        ||this parameter can only work in dump mode.
+                        ||this parameter can only work in (dump,stat) mode.
     -sp,--space         ::dump data space       default: 'default'
                         ||this parameter can only work in dump mode.
                         ||if not set, use default store space.
                         ||usually, you don't have to change the name here.
     -fi,--file          ::dump toggle
                         ||this parameter can only work in dump mode.
-                        ||if set, try dump data in a file
+                        ||if set, try dump data in a local file
                         ||if not set, just get data and show it in console.
 '''
 
@@ -204,6 +207,7 @@ def deal_with_stop(args):
     password= defaults_conf.get('password')
     db      = defaults_conf.get('db')
     if args.taskid is None:
+        print(stop_description)
         print('pls set param:taskid for stop task.')
         print('[eg.] "vredis stop -ta 23"')
         return
@@ -225,6 +229,7 @@ def deal_with_dump(args):
     space   = args.space # 'default'
     file    = args.file # None
     if args.taskid is None:
+        print(dump_description)
         print('pls set param:taskid for dump task.')
         print('[eg.] "vredis dump -ta 23 -li 100 -fi some.json"')
         return
@@ -278,9 +283,33 @@ def deal_with_stat(args):
     port    = defaults_conf.get('port')
     password= defaults_conf.get('password')
     db      = defaults_conf.get('db')
-    if args.taskid is None:
+    ls = int(args.list)
+    if args.taskid is None and not ls:
+        print(stat_description)
         print('pls set param:taskid for check task stat.')
+        print('or set param:ls for check latest N task simple stat(default N is 5).')
         print('[eg.] "vredis stat -ta 23"')
+        print('[eg.] "vredis stat -ls"')
+        print('[eg.] "vredis stat -ls -li 10"')
+        return
+    if ls:
+        sd = Sender.from_settings(host=host,port=port,password=password,db=db)
+        li = 5 if args.limit == -1 else int(args.limit)
+        lp = []
+        for i in sd.rds.hkeys('vredis:sender'):
+            i = i.decode()
+            if '@' in i:
+                lp.append(int(i.split('@')[0]))
+        fmt = '{:>7}  {}'
+        v = '[ INFO ] latest {} task simple stat'.format(li)
+        print(v)
+        print(fmt.format('taskid', 'task starttime'))
+        print('='*len(v))
+        for taskid in sorted(lp)[::-1][:li]:
+            timestamp   = sd.rds.hget(defaults.VREDIS_WORKER, '{}@stamp'.format(taskid))
+            stampcut    = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(timestamp))))\
+                             if timestamp else str('unstart')
+            print(fmt.format(taskid, stampcut))
         return
     taskid  = int(args.taskid)
     info    = '[ REDIS ]'+'{:>36}'.format('host: {}, port: {}'.format(host,port))
@@ -391,6 +420,7 @@ def execute(argv=None):
     parse.add_argument('-wf','--workerfilter',  default='all',      help=argparse.SUPPRESS)
     parse.add_argument('-ta','--taskid',        default=None,       help=argparse.SUPPRESS)
     parse.add_argument('-cl','--clear',         action='store_true',help=argparse.SUPPRESS)
+    parse.add_argument('-ls','--list',          action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-li','--limit',         default=-1,         help=argparse.SUPPRESS)
     parse.add_argument('-sp','--space',         default='default',  help=argparse.SUPPRESS)
     parse.add_argument('-fi','--file',          default=None,       help=argparse.SUPPRESS)
