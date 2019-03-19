@@ -97,12 +97,13 @@ def from_pipeline(cls, taskid, piptype=None):
 # 所以也不好废弃，而是兼顾在不同的功能上，先就目前这样好了。
 # 或者换个想法，分成两个函数的原因：从功能上区别开来。（一个用于信号传递，一个用于实时传输）
 # 并且上面有一个 tasklist 的实例内部参数需要通过 cls 传递。（用于判断是否在环境配置时就出现了错误）
-def send_to_pipeline_real_time(taskid,workerid,order,rds,msg):
+def send_to_pipeline_real_time(taskid,workerid,order,rds,msg,dumps=False):
     _rname = '{}:{}'.format(defaults.VREDIS_SENDER_RUN, taskid)
     rdata = {
         'workerid': workerid, 
         'taskid': taskid, 
         'piptype': 'realtime',
+        'dumps':dumps,
         'msg':msg
     }
     rds.lpush(_rname, json.dumps(rdata))
@@ -171,11 +172,11 @@ def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
         return
 
     def mk_sdata(data):
-        return json.dumps({'taskid': taskid, 'data': data,})
+        return json.dumps({'data': data,})
 
     its = []
     dt = None
-    lg = True if valve is not None and valve.VREDIS_KEEP_LOG_ITEM else False
+    lg = True if valve is not None and valve.VREDIS_DUMP_REALTIME_ITEM else False
     # 最外层返回的数据只要是list，或是tuple，那就迭代取出然后准备传入 redis。
     if isinstance(data,(types.GeneratorType,list,tuple)):
         for i in data:
@@ -191,15 +192,22 @@ def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
         raise NotInDefaultType('{} not in defaults type:{}.'.format(
                         type(data),'(GeneratorType,list,tuple,dict,int,str,float)'))
 
+    func = lambda i:send_to_pipeline_real_time(taskid,cls.workerid,None,cls.rds,i,dumps=True)
     n = 0
     with cls.rds.pipeline() as pipe:
         pipe.multi()
         for it in its:
-            pipe.lpush(_rname, it); n += 1
-            if lg: print(it)
+            if lg: 
+                func(it)
+            else:
+                pipe.lpush(_rname, it)
+                n += 1
         if dt is not None:
-            pipe.lpush(_rname, dt); n += 1
-            if lg: print(dt)
+            if lg:
+                func(dt)
+            else:
+                pipe.lpush(_rname, dt)
+                n += 1
         pipe.lrem(_cname, -1, ret)
         pipe.execute()
 

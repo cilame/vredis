@@ -5,6 +5,7 @@ import time
 import json
 import logging
 import random
+from threading import Thread
 
 from . import defaults
 from . import common
@@ -26,6 +27,7 @@ class Sender(common.Initer):
         self.rds.ping() # 确认链接 redis。
         self.start_worker   = []
 
+
     @classmethod
     def from_settings(cls,**kw):
         rds = cls.redis_from_settings(**kw)
@@ -36,16 +38,46 @@ class Sender(common.Initer):
                 setattr(defaults,i,kw[i])
         return cls(rds=rds)
 
-
     def process_run(self):
         workernum = len(self.start_worker)
-        while self.keepalive and workernum:
-            runinfo = from_pipeline(self, self.taskid, 'run')
-            if runinfo and runinfo['piptype'] == 'realtime':
-                print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
-            if self.taskstop and runinfo is None:
-                self.logstop = True
-                break
+        if not workernum: return
+        if self.dumping: 
+            self.dumping_stop = False
+            self.dumping_queue = [] # 实时数据保存时需要用的部分。
+        self.ntaskstop = 0
+        def _logger():
+            while self.keepalive:
+                runinfo = from_pipeline(self, self.taskid, 'run')
+                if runinfo and runinfo['piptype'] == 'realtime':
+                    with self.lock:
+                        if runinfo['dumps']:
+                            if self.dumping:
+                                self.dumping_queue.append(runinfo['msg'])
+                        else:
+                            print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
+                if self.taskstop and runinfo is None:
+                    with self.lock:
+                        self.ntaskstop += 1
+                        if self.ntaskstop == defaults.VREDIS_SENDER_THREAD_SEND:
+                            self.logstop = True
+                            self.dumping_stop = True
+                    break
+        def _dumper():
+            with open('%04d%02d%02d-%02d%02d%02d.json'%time.localtime()[:6], 'w', 
+                            encoding='utf-8',
+                            buffering=8192 ) as f:
+                f.write('[\n')
+                while not self.taskstop:
+                    if len(self.dumping_queue)>1:
+                        f.write(self.dumping_queue.pop(0) + ',\n')
+                    else:
+                        time.sleep(.15)
+                if self.dumping_queue:
+                    f.write(self.dumping_queue.pop(0) + '\n]')
+        for _ in range(defaults.VREDIS_SENDER_THREAD_SEND):
+            Thread(target=_logger).start()
+        if self.dumping:
+            Thread(target=_dumper).start()
 
     def process_stop(self):
         def log_start():
@@ -122,11 +154,12 @@ class Sender(common.Initer):
             self.rds.hincrby(defaults.VREDIS_SENDER,defaults.VREDIS_SENDER_ID)
         return self.taskid
 
-    def send(self, input_order, loginfo=True, keepalive=True):
+    def send(self, input_order, loginfo=True, keepalive=True, dumping=False):
         self.taskstop   = False
         self.logstop    = False     # 用于在 cmdline 内对命令返回输出结束挂钩
         self.loginfo    = loginfo
         self.keepalive  = keepalive
+        self.dumping    = dumping
         def wait_connect_pub_sender(self):
             rname       = '{}:{}'.format(defaults.VREDIS_PUBLISH_SENDER, self.taskid)
             cursub      = self.rds.pubsub_numsub(rname)[0][1]

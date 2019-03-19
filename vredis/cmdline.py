@@ -11,11 +11,7 @@ from .worker import Worker
 from .sender import Sender
 from .error import PathNotExists
 
-vredis_command_types = defaults.VREDIS_COMMAND_TYPES
-vredis_command_types.remove('script') 
-vredis_command_types = vredis_command_types + ['worker','stat','stop','config','dump','version']
-
-
+vredis_command_types = ['cmdline', 'worker','stat','stop','config','dump','version']
 
 defaults_conf = dict(
     host='localhost',
@@ -45,7 +41,6 @@ except:
     print('unlocal homepath.')
     pass
 
-
 def init_default(args):
     global defaults_conf
     defaults_conf['host']    = defaults_conf.get('host')      if args.host == None else args.host
@@ -53,7 +48,6 @@ def init_default(args):
     defaults_conf['password']= defaults_conf.get('password')  if args.password == None else args.password
     defaults_conf['db']      = defaults_conf.get('db')        if args.db == None else int(args.db)
     # 优先本地配置，其次是config配置，最后才是默认配置
-
 
 description = '''
 usage
@@ -89,6 +83,8 @@ defaults
                         ||if set, try dump data in a file
                         ||if not set, just get data and show it in console.
   type<toggle>
+  -la,--latest          ::don't use taskid to check for the latest task
+                        ||this parameter can only work in stat
   -ls,--list            ::list for check latest N task simple stat.
                         ||this parameter can only work in stat
   -cl,--clear           ::clear config, use initial configuration.
@@ -102,7 +98,7 @@ defaults
 
 cmdline_description = '''
   cmdline               ::[eg.] "vredis cmdline -wf 3,6,9"
-    -wf --workerfilter  ||this parameter can only work in cmdline mode.
+    -wf,--workerfilter  ||this parameter can only work in cmdline mode.
                         ||use "cmdline" you can enter a cmd/ mode,
                         ||you can send simple cmd command to execute.
                         ::cmd/ pip install requests
@@ -115,8 +111,10 @@ cmdline_description = '''
 stat_description = '''
   stat                  ::[eg.] "vredis stat -ta 26"
     -ta,--taskid        ||this parameter can work in stat mode
-    -ls,--list          ::this parameter can work in stat
-                        ||list check cannot coexist with single task check
+    -la,--latest        ::don't use taskid to check for the latest task
+                        ||this parameter can only work in stat
+    -ls,--list          ::list check cannot coexist with single task check
+                        ||this parameter can work in stat
 '''
 
 stop_description = '''
@@ -284,34 +282,52 @@ def deal_with_stat(args):
     password= defaults_conf.get('password')
     db      = defaults_conf.get('db')
     ls = int(args.list)
-    if args.taskid is None and not ls:
+    la = int(args.latest)
+    if args.taskid is None and not ls and not la:
         print(stat_description)
         print('pls set param:taskid for check task stat.')
         print('or set param:ls for check latest N task simple stat(default N is 5).')
         print('[eg.] "vredis stat -ta 23"')
+        print('[eg.] "vredis stat -la"')
         print('[eg.] "vredis stat -ls"')
         print('[eg.] "vredis stat -ls -li 10"')
         return
-    if ls:
-        sd = Sender.from_settings(host=host,port=port,password=password,db=db)
+    sd = Sender.from_settings(host=host,port=port,password=password,db=db)
+    if ls or la:
         li = 5 if args.limit == -1 else int(args.limit)
         lp = []
-        for i in sd.rds.hkeys('vredis:sender'):
+        for i in sd.rds.hkeys(defaults.VREDIS_SENDER):
             i = i.decode()
-            if '@' in i:
+            if '@' in i and i.endswith('hookcrash'):
                 lp.append(int(i.split('@')[0]))
-        fmt = '{:>7}  {}'
-        v = '[ INFO ] latest {} task simple stat'.format(li)
-        print(v)
-        print(fmt.format('taskid', 'task starttime'))
-        print('='*len(v))
-        for taskid in sorted(lp)[::-1][:li]:
-            timestamp   = sd.rds.hget(defaults.VREDIS_WORKER, '{}@stamp'.format(taskid))
-            stampcut    = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(timestamp))))\
-                             if timestamp else str('unstart')
-            print(fmt.format(taskid, stampcut))
-        return
-    taskid  = int(args.taskid)
+        if ls:
+            fmt = '{:>7}  {}'
+            v = '[ INFO ] latest {} task simple stat'.format(li)
+            print(v)
+            print(fmt.format('taskid', 'task starttime'))
+            print('='*len(v))
+            for taskid in sorted(lp)[::-1][:li]:
+                timestamp   = sd.rds.hget(defaults.VREDIS_WORKER, '{}@stamp'.format(taskid))
+                stampcut    = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(timestamp))))\
+                                 if timestamp else str('unstart')
+                print(fmt.format(taskid, stampcut))
+            return
+        elif la:
+            if not lp:
+                print('no task in redis.')
+                return
+            else:
+                la = sorted(lp)[-1]
+    taskid  = la if la else int(args.taskid)
+    while True:
+        stype = sd.rds.hget(defaults.VREDIS_SENDER,'{}@scripttype'.format(taskid))
+        if stype:
+            taskid -= 1
+        elif taskid == 0:
+            print('no task in redis.')
+            return
+        else:
+            break
     info    = '[ REDIS ]'+'{:>36}'.format('host: {}, port: {}'.format(host,port))
     print(info)
     print('='*45)
@@ -336,8 +352,8 @@ def deal_with_stat(args):
             print(fm)
             if idx == len(dt) - 1:
                 print(fmt.format(*['------']*5))
-                print(fmt.format('-','collect','execute','fail','undistr'))
-                key,value = 'all',a
+                print(fmt.format('taskid','collect','execute','fail','undistr'))
+                key,value = taskid,a
                 fm = fmt.format(key,
                     value['collection'],
                     value['execute'],
@@ -347,7 +363,7 @@ def deal_with_stat(args):
     timestamp   = sd.rds.hget(defaults.VREDIS_WORKER, '{}@stamp'.format(taskid))
     stampinfo   = '{:>' + str(len(info)) +'}'
     stampcut    = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(timestamp)))) if timestamp else str(None)
-    stampinfo   = stampinfo.format('start: '+stampcut)
+    stampinfo   = stampinfo.format('start:{}'.format(stampcut))
     print('='*45)
     print(stampinfo)
 
@@ -364,9 +380,10 @@ def deal_with_cmdline(args):
     while True:
         cmd = input('cmd/ ')
         if cmd.strip():
-            sd.send({'command':'cmdline','settings':{'VREDIS_CMDLINE':cmd,
+            taskid = sd.send({'command':'cmdline','settings':{'VREDIS_CMDLINE':cmd,
                                                      'VREDIS_KEEP_LOG_CONSOLE':False,
                                                      'VREDIS_FILTER_WORKERID':workerfilter}},loginfo=False)
+            sd.rds.hset(defaults.VREDIS_SENDER,'{}@scripttype'.format(taskid),'cmdline')
             while not sd.logstop:
                 time.sleep(.15)
 
@@ -421,6 +438,7 @@ def execute(argv=None):
     parse.add_argument('-ta','--taskid',        default=None,       help=argparse.SUPPRESS)
     parse.add_argument('-cl','--clear',         action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-ls','--list',          action='store_true',help=argparse.SUPPRESS)
+    parse.add_argument('-la','--latest',        action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-li','--limit',         default=-1,         help=argparse.SUPPRESS)
     parse.add_argument('-sp','--space',         default='default',  help=argparse.SUPPRESS)
     parse.add_argument('-fi','--file',          default=None,       help=argparse.SUPPRESS)

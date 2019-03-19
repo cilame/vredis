@@ -75,12 +75,13 @@ VREDIS_KEEPALIVE = True
 VREDIS_HOOKCRASH = None # 考虑到 task 隔离的问题，这里添加了这个参数来对任务空间进行配置。
 VREDIS_DELAY_CLEAR = 5
 
+VREDIS_DUMP_REALTIME_ITEM = False # 是否在保持连接状态下直接收集数据
+
 # 实时回写控制台日志
 # 随机选择一个任务进行实时日志回写，“随机N个”和“指定taskid或指定workerid”互斥。
 # 当指定 taskid 和 workerid 进行过滤输出时，“随机选择N个”的配置就会失效
 # 如果这里不设置的话，就默认是全部
 VREDIS_KEEP_LOG_CONSOLE = False # 是否保持 worker 端的命令行执行。
-VREDIS_KEEP_LOG_ITEM = False # 是否需要打印收集到的数据
 VREDIS_FILTER_LOG_RANDOM_N = False # 现在默认关闭，暂时没时间开发
 VREDIS_FILTER_LOG_TASKID = None
 VREDIS_FILTER_LOG_WORKERID = None

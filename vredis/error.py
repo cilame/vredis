@@ -25,3 +25,5 @@ class SenderAlreadyStarted(Exception):
 class PathNotExists(Exception):
     pass
 
+class SettingError(Exception):
+    pass

@@ -13,7 +13,7 @@ from vredis import pipe
 #pipe.connect(host=host,port=6379,password=password)
 #pipe.from_settings(VREDIS_LIMIT_LOG_WORKER_NUM=10) # 队列过多时默认只显示前10条workerid，如需显示完整需要修改这里。
 pipe.DEBUG = True # worker端是否进行控制台打印。(默认False)
-#pipe.LOG_ITEM = False # 是否进行item数据打印显示。(默认False)
+#pipe.DUMPING = True # 是否进行item数据打印显示。(默认False)
 pipe.KEEPALIVE = False # 是否保持链接，如果是，worker 端将监控发送端是否链接，若是 sender 端断开则停止任务。（默认True）
 
 # 被包装的函数在 worker 端执行时，
@@ -29,15 +29,10 @@ def req_baidu(key='123',num=0):
     url = 'http://www.baidu.com/s?wd={}&pn={}0'.format(key,num)
     s = requests.get(url)
     e = etree.HTML(s.content)
-    print(num)
+    #print(num)
     for href in e.xpath('//div[contains(@class,"c-container")]/h3/a/@href'):
         yield {'num':num,'href':href}
 
-for i in range(10000):
-    if i%1000==0:
-        print('send task',i)
+for i in range(100000):
     req_baidu(num=i)
 
-
-# 如果 KEEPALIVE 是关闭的状态，这里的 print 一般都会先于打印回显的任务。
-print('=========================')

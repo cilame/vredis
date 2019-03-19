@@ -3,13 +3,14 @@ import time
 import json
 import queue
 import os
+import math
 from threading import Thread, RLock
 
 
 from . import defaults
 from .sender import Sender
 from .worker import Worker
-from .error import SenderAlreadyStarted,NotInDefaultType
+from .error import SenderAlreadyStarted,NotInDefaultType,SettingError
 
 
 
@@ -80,16 +81,14 @@ class Pipe:
 
         self.DEBUG      = False
         self.KEEPALIVE  = True
-        self.LOG_ITEM   = False
+        self.DUMPING    = False
         self.QUICK_SEND = True
-        self.SPLIT_CNT  = 30000 # 当单片任务全部由 sender 端发送时则需要显示当前发送任务量。
+        self.SPLIT_CNT  = 100 # 当单片任务全部由 sender 端发送时则需要显示当前发送任务量。
 
         self.taskqueue  = queue.Queue()
         self.lock       = RLock()
         self.tlock      = 0
         self.send_cnt   = 0
-        
-
 
     def get_config_from_homepath(self):
         defaults_conf = dict(
@@ -136,6 +135,9 @@ class Pipe:
         return self
 
     def __call__(self, func, **plus):
+        if self.DUMPING == True and self.KEEPALIVE == False:
+            raise SettingError('DUMPING==True mode must work in KEEPALIVE==True mode.')
+
         src = inspect.getsource(func)
         src = '\n'.join(filter(lambda i:not i.strip().startswith('@'), src.splitlines()))+'\n'
         self.script += src
@@ -149,7 +151,7 @@ class Pipe:
                     self.sender.rds.hset(defaults.VREDIS_WORKER, '{}@stamp'.format(self.tid), int(time.time()))
                     if self.QUICK_SEND:
                         # 多线程池任务发送
-                        self.quicker()
+                        self.quicker_send_task()
                         self.task_sender = self.quick_send
                     else:
                         # 单线程发送任务即可
@@ -166,7 +168,7 @@ class Pipe:
 
 
     # 线程池，主要用于快速提交任务使用
-    def quicker(self):
+    def quicker_send_task(self):
         def _sender():
             with self.lock: self.tlock += 1
             while True:
@@ -175,12 +177,14 @@ class Pipe:
                     self.sender.send_execute(taskid, function_name, args, kwargs, plus, keepalive)
                     with self.lock: self.send_cnt += 1
                     if self.send_cnt % self.SPLIT_CNT == 0 and self.send_cnt != 0:
-                        print('{} tasks have been sent.'.format(self.send_cnt))
+                        _t = int(self.send_cnt//self.SPLIT_CNT)
+                        if _t == 2**int(math.log(_t,2)):
+                            print('{} tasks have been sent.'.format(self.send_cnt))
                 except:
                     if time.time() - self.timestamp > 2:
                         with self.lock: self.tlock -= 1
-                        if self.tlock == 0:
-                            print('{} tasks have been sent.'.format(self.send_cnt))
+                        if self.tlock == 0 and not self.KEEPALIVE:
+                            print('all: {} tasks have been sent.'.format(self.send_cnt))
                         break
                     time.sleep(.15)
         for _ in range(defaults.VREDIS_SENDER_THREAD_SEND):
@@ -193,9 +197,6 @@ class Pipe:
     def normal_send(self, taskid, function_name, args, kwargs, plus, keepalive):
         self.sender.send_execute(taskid, function_name, args, kwargs, plus, keepalive)
 
-
-
-
     # 开启任务
     def send_work(self):
         self.tid =  self.sender.send(input_order = {
@@ -203,10 +204,11 @@ class Pipe:
                         'settings':{
                             'VREDIS_SCRIPT':        self.script,
                             'DEBUG':                self.DEBUG,
-                            'VREDIS_KEEP_LOG_ITEM': self.LOG_ITEM,
+                            'VREDIS_DUMP_REALTIME_ITEM': self.DUMPING,
                             'VREDIS_KEEPALIVE':     self.KEEPALIVE}
                         },
-                    keepalive=self.KEEPALIVE)
+                    keepalive=self.KEEPALIVE,
+                    dumping=self.DUMPING)
 
     # 延迟开启任务
     def send_work_delay(self):
@@ -216,8 +218,6 @@ class Pipe:
                 time.sleep(.15)
             self.send_work()
         Thread(target=_logtoggle).start()
-
-
 
     def set(self, **plus):
         # 这里的 plus 主要是由 worker 端的需求进行的需求处理，这里暂时就不多设定了
@@ -277,6 +277,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.1.5'
+__version__ = '1.1.6'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'

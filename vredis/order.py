@@ -25,8 +25,11 @@ def cmdline_command(cls, taskid, workerid, order):
     cmd = order['settings']['VREDIS_CMDLINE'].strip()
     if cmd.lower() == 'ls' or cmd.lower() == 'list':
         # 主要用于简单的查看功能所以就把简单的数据print一遍即可。
-        info = '[ workerid ]:{}, platform:{}.'.format(workerid, platform.platform())
+        info = '[curr task]:{}, platform:{}.'.format(list(TaskEnv.__taskenv__), platform.platform())
         print(info)
+    elif cmd.lower() == 'debug':
+        print('current work task:',list(TaskEnv.__taskenv__))
+        
     else:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=1)
         for line in iter(p.stdout.readline, b''):
