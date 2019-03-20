@@ -301,7 +301,7 @@ def deal_with_stat(args):
             if '@' in i and i.endswith('hookcrash'):
                 lp.append(int(i.split('@')[0]))
         if ls:
-            fmt = '{:>7}  {:>20}  {:>9}  {:>7}  {:>5}  {}'
+            fmt = '{:>7}  {:>20}  {:>10}  {:>7}  {:>5}  {}'
             print('[ INFO ] latest {} task simple stat'.format(li))
             print(fmt.format('taskid', 'task starttime', 'collection','execute','fail', 'workerids'))
             print('='*75)

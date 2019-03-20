@@ -168,6 +168,54 @@ class Pipe:
 
     # 线程池，主要用于快速提交任务使用
     def quicker_send_task(self):
+        def print_task_info(host,port,taskid):
+            while True:
+                time.sleep(5)
+                info    = '[ REDIS ]'+'{:>36}'.format('host: {}, port: {}'.format(host,port))
+                print('log info by each 10 sec.')
+                print(info)
+                print('='*45)
+                dt = self.sender.get_stat(taskid)
+                stop = []
+                if dt is None:
+                    print('no stat taskid:{}.'.format(taskid))
+                else:
+                    # format print
+                    a = dt.pop('all')
+                    kt = sorted(dt,key=lambda i:int(i))
+                    fmt = '{:>9}'*5
+                    print(fmt.format('workerid','collect','execute','fail','stop'))
+                    print(fmt.format(*['------']*5))
+                    for idx,key in enumerate(kt):
+                        value = dt[key]
+                        stop.append(bool(value['stop']))
+                        fm = fmt.format(key,
+                            value['collection'],
+                            value['execute'],
+                            value['fail'],
+                            str(bool(value['stop'])))
+                        print(fm)
+                        if idx == len(dt) - 1:
+                            print(fmt.format(*['------']*5))
+                            print(fmt.format('taskid','collect','execute','fail','undistr'))
+                            key,value = taskid,a
+                            fm = fmt.format(key,
+                                value['collection'],
+                                value['execute'],
+                                value['fail'],
+                                value['tasknum'])
+                            print(fm)
+                timestamp   = self.sender.rds.hget(defaults.VREDIS_WORKER, '{}@stamp'.format(taskid))
+                stampinfo   = '{:>' + str(len(info)) +'}'
+                stampcut    = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(timestamp)))) if timestamp else str(None)
+                stampinfo   = stampinfo.format('start:{}'.format(stampcut))
+                print('='*45)
+                print(stampinfo)
+                if all(stop):
+                    print('task is stop.')
+                    break
+                print()
+                time.sleep(5)
         def _sender():
             with self.lock: self.tlock += 1
             while True:
@@ -190,6 +238,11 @@ class Pipe:
                         with self.lock: self.tlock -= 1
                         if self.tlock == 0 and not self.KEEPALIVE:
                             print('all: {} tasks have been sent.'.format(self.send_cnt))
+                            print('you can close the program at any time. (ctrl+pause[win] or alt+pause[linux])')
+                            print()
+                            host = self.settings.get('host','localhost')
+                            port = self.settings.get('port',6379)
+                            print_task_info(host, port, self.tid)
                         break
                     time.sleep(.15)
         for _ in range(defaults.VREDIS_SENDER_THREAD_SEND):
