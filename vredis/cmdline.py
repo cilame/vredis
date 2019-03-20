@@ -338,6 +338,7 @@ def deal_with_stat(args):
                         print('-'*_num)
                         print('| taskid:  ',v.get('taskid'))
                         print('| function:',v.get('function'))
+                        print('| args:    ',v.get('args'))
                         print('| kwargs:  ',v.get('kwargs'))
                         print('| plus:    ',v.get('plus'))
                         print('='*_num)
