@@ -74,6 +74,8 @@ defaults
                         ||this parameter can only work in stat mode.
   -li,--limit           ::dump data limit       default: -1 (all)
                         ||this parameter can only work in (dump,stat) mode.
+  -er,--error           ::check error info by taskid.
+                        ||this parameter can work in stat
   -sp,--space           ::dump data space       default: 'default'
                         ||this parameter can only work in dump mode.
                         ||if not set, use default store space.
@@ -114,6 +116,8 @@ stat_description = '''
     -la,--latest        ::don't use taskid to check for the latest task
                         ||this parameter can only work in stat
     -ls,--list          ::list check cannot coexist with single task check
+                        ||this parameter can work in stat
+    -er,--error         ::check error info by taskid.
                         ||this parameter can work in stat
 '''
 
@@ -283,18 +287,78 @@ def deal_with_stat(args):
     db      = defaults_conf.get('db')
     ls = int(args.list)
     la = int(args.latest)
-    if args.taskid is None and not ls and not la:
+    if args.taskid is None and args.error is None and not ls and not la:
         print(stat_description)
         print('pls set param:taskid for check task stat.')
         print('or set param:ls for check latest N task simple stat(default N is 5).')
+        print('or set param:la for check latest task stat.')
+        print('or set param:er for check latest N error info by taskid(default N is 100).')
         print('[eg.] "vredis stat -ta 23"')
+        print('[eg.] "vredis stat -er 23"')
+        print('[eg.] "vredis stat -er 23 -li 200"')
         print('[eg.] "vredis stat -la"')
         print('[eg.] "vredis stat -ls"')
         print('[eg.] "vredis stat -ls -li 10"')
         return
     sd = Sender.from_settings(host=host,port=port,password=password,db=db)
+    if args.error is not None:
+        li = 100 if args.limit == -1 else int(args.limit)
+        er = int(args.error)
+        table = '{}:{}'.format(defaults.VREDIS_TASK_ERROR, er)
+        lens = sd.rds.llen(table)
+        splitnum = 500
+        cnt = 0
+        cns = set()
+        dpf = 0
+        if lens>0:
+            q = []
+            for i in range(int(lens/splitnum)):
+                v = [i*splitnum, i*splitnum+splitnum] if i==0 else [i*splitnum+1, i*splitnum+splitnum]
+                q.append(v)
+            if lens%splitnum != 0:
+                if q:
+                    q.append([q[-1][-1]+1, q[-1][-1]+lens%splitnum-1])
+                else:
+                    q.append([0,lens-1])
+            else:
+                q[-1][-1] = q[-1][-1] - 1
+            for start,end in q:
+                for ret in sd.rds.lrange(table,start,end):
+                    cnt += 1
+                    t = '| ERROR INDEX: {} |'.format(cnt)
+                    v = json.loads(ret)
+                    _num = 80
+                    q = v.get('traceback').strip()
+                    if q not in cns:
+                        print()
+                        print('-'*(_num//2))
+                        cns.add(q)
+                        for i in q.splitlines():
+                            print('|', i)
+                        print('-'*_num)
+                        print('| taskid:  ',v.get('taskid'))
+                        print('| function:',v.get('function'))
+                        print('| kwargs:  ',v.get('kwargs'))
+                        print('| plus:    ',v.get('plus'))
+                        print('='*_num)
+                        print(t)
+                        print('='*len(t))
+                    else:
+                        dpf += 1
+                    if cnt==li:
+                        break
+        _num = 40
+        print()
+        print('-'*_num)
+        print('| *ALL ERROR NUM:',lens)
+        print('| LOG ERROR NUM:',cnt,'(LIMIT:{})'.format(li))
+        print('| LOG ERROR TYPE NUM:',len(cns))
+        print('| LOG FILTER DUPLICATE ERROR NUM:',dpf)
+        print('='*_num)
+        print()
+        return
+    li = 5 if args.limit == -1 else int(args.limit)
     if ls or la:
-        li = 5 if args.limit == -1 else int(args.limit)
         lp = []
         for i in sd.rds.hkeys(defaults.VREDIS_SENDER):
             i = i.decode()
@@ -445,6 +509,7 @@ def execute(argv=None):
     parse.add_argument('-ls','--list',          action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-la','--latest',        action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-li','--limit',         default=-1,         help=argparse.SUPPRESS)
+    parse.add_argument('-er','--error',         default=None,       help=argparse.SUPPRESS)
     parse.add_argument('-sp','--space',         default='default',  help=argparse.SUPPRESS)
     parse.add_argument('-fi','--file',          default=None,       help=argparse.SUPPRESS)
     _print_help(argv)
