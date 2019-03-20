@@ -301,16 +301,22 @@ def deal_with_stat(args):
             if '@' in i and i.endswith('hookcrash'):
                 lp.append(int(i.split('@')[0]))
         if ls:
-            fmt = '{:>7}  {}'
-            v = '[ INFO ] latest {} task simple stat'.format(li)
-            print(v)
-            print(fmt.format('taskid', 'task starttime'))
-            print('='*len(v))
+            fmt = '{:>7}  {:>20}  {:>9}  {:>7}  {:>5}  {}'
+            print('[ INFO ] latest {} task simple stat'.format(li))
+            print(fmt.format('taskid', 'task starttime', 'collection','execute','fail', 'workerids'))
+            print('='*75)
             for taskid in sorted(lp)[::-1][:li]:
                 timestamp   = sd.rds.hget(defaults.VREDIS_WORKER, '{}@stamp'.format(taskid))
                 stampcut    = str(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(int(timestamp))))\
-                                 if timestamp else str('unstart')
-                print(fmt.format(taskid, stampcut))
+                                 if timestamp else str('non-task')
+                workerids   = sd.rds.hget(defaults.VREDIS_SENDER, '{}@hookcrash'.format(taskid))
+                workerids   = list(map(int,json.loads(workerids))) if workerids else workerids
+                dt = sd.get_stat(taskid)
+                if dt is not None:
+                    collection,execute,fail,tasknum = dt.pop('all').values()
+                else:
+                    collection,execute,fail = None,None,None
+                print(fmt.format(taskid, stampcut, collection,execute,fail, workerids))
             return
         elif la:
             if not lp:
@@ -331,8 +337,7 @@ def deal_with_stat(args):
     info    = '[ REDIS ]'+'{:>36}'.format('host: {}, port: {}'.format(host,port))
     print(info)
     print('='*45)
-    sd      = Sender.from_settings(host=host,port=port,password=password,db=db)
-    dt      = sd.get_stat(taskid)
+    dt = sd.get_stat(taskid)
     if dt is None:
         print('no stat taskid:{}.'.format(taskid))
     else:

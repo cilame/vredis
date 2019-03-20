@@ -142,8 +142,6 @@ class Pipe:
         src = '\n'.join(filter(lambda i:not i.strip().startswith('@'), src.splitlines()))+'\n'
         self.script += src
         def _wrapper(*args, **kwargs):
-            if not self.KEEPALIVE:
-                self.timestamp = time.time()
             with self.lock:
                 if self.unstart:
                     self.sender = self.sender if self.sender is not None else Sender.from_settings(**self.settings)
@@ -158,6 +156,7 @@ class Pipe:
                         self.task_sender = self.normal_send
                     if not self.KEEPALIVE:
                         # 发送模式先获取任务id号码，先传输任务
+                        print('receiving taskid: {}'.format(self.tid))
                         self.send_work_delay()
                     else:
                         # 实时模式则先发送任务，直接实时传输任务即可。
@@ -175,7 +174,13 @@ class Pipe:
                 try:
                     taskid, function_name, args, kwargs, plus, keepalive = self.taskqueue.get(timeout=2)
                     self.sender.send_execute(taskid, function_name, args, kwargs, plus, keepalive)
-                    with self.lock: self.send_cnt += 1
+                    with self.lock: 
+                        self.send_cnt += 1
+                        if not self.KEEPALIVE: 
+                            self.timestamp = time.time()
+                        else:
+                            if not self.sender.start_worker:
+                                return
                     if self.send_cnt % self.SPLIT_CNT == 0 and self.send_cnt != 0:
                         _t = int(self.send_cnt//self.SPLIT_CNT)
                         if _t == 2**int(math.log(_t,2)):
@@ -199,7 +204,7 @@ class Pipe:
 
     # 开启任务
     def send_work(self):
-        self.tid =  self.sender.send(input_order = {
+        self.sender.send(input_order = {
                         'command':'script',
                         'settings':{
                             'VREDIS_SCRIPT':        self.script,
@@ -212,9 +217,9 @@ class Pipe:
 
     # 延迟开启任务
     def send_work_delay(self):
-        # 如果无需保持连接的话，等执行完就
+        # 如果无需保持连接的话，等任务发送完再执行会更好一些，防止任务队列可能为空的情况。
         def _logtoggle():
-            while time.time() - self.timestamp < 1.5: # 当任务发送结束（间隙不超过）n秒后就开始从日志管道抽取日志信息。
+            while time.time() - self.timestamp < 1.5: # 当任务发送结束（间隙不超过）n秒后就开始执行任务。
                 time.sleep(.15)
             self.send_work()
         Thread(target=_logtoggle).start()
