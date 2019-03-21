@@ -38,7 +38,7 @@ def some2(i):
         print('rasie',i)
         raise # 测试异常
     #print('use func2:{}'.format(i))
-    return 333333,'你好'
+    return [[333333,'你好']]
 
 for i in range(300):
     #print(i)

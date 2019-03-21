@@ -229,7 +229,7 @@ class Pipe:
                         else:
                             if not self.sender.start_worker:
                                 return
-                    if self.send_cnt % self.SPLIT_CNT == 0 and self.send_cnt != 0:
+                    if not self.KEEPALIVE and self.send_cnt % self.SPLIT_CNT == 0 and self.send_cnt != 0:
                         _t = int(self.send_cnt//self.SPLIT_CNT)
                         if _t == 2**int(math.log(_t,2)):
                             print('{} tasks have been sent.'.format(self.send_cnt))
@@ -335,6 +335,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.1.7'
+__version__ = '1.1.8'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'

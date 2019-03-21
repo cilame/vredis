@@ -48,7 +48,7 @@ class stdhooker:
             _text_ = '[{}:{}] '.format(taskid,workerid) + _text[0]
 
             # 管道架设在这里，现在发现用 valve 来进行配置还挺方便的，能保证任务隔离，动态配置时候还很方便。
-            if log_filter(taskid,workerid,valve,rdm): 
+            if valve.VREDIS_KEEPALIVE and log_filter(taskid,workerid,valve,rdm): 
                 send_to_pipeline_real_time(taskid,workerid,order,rds,_text_)
             if valve.VREDIS_KEEP_LOG_CONSOLE:
                 self.__org_func__.write(_text_ + '\n')

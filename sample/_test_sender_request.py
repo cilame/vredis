@@ -29,10 +29,10 @@ def req_baidu(key='123',num=0):
     url = 'http://www.baidu.com/s?wd={}&pn={}0'.format(key,num)
     s = requests.get(url)
     e = etree.HTML(s.content)
-    #print(num)
+    print(num)
     for href in e.xpath('//div[contains(@class,"c-container")]/h3/a/@href'):
         yield {'num':num,'href':href}
 
-for i in range(1000):
+for i in range(400):
     req_baidu(num=i)
 

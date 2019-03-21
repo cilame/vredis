@@ -66,35 +66,23 @@ defaults
   type<param>
   -ho,--host            ::redis host.           default: localhost
   -po,--port            ::redis port.           default: 6379
-  -pa,--password        ::redis password.       default: None
+  -pa,--password        ::redis password.       default: None       (means no password)
   -db,--db              ::redis db.             default: 0
-  -wf,--workerfilter    ::worker filter         default: all
-                        ||this parameter can only work in cmdline mode.
-  -ta,--taskid          ::check task work stat  default: None
-                        ||this parameter can only work in stat mode.
-  -li,--limit           ::dump data limit       default: -1 (all)
-                        ||this parameter can only work in (dump,stat) mode.
-  -er,--error           ::check error info by taskid.
-                        ||this parameter can work in stat
-  -sp,--space           ::dump data space       default: 'default'
-                        ||this parameter can only work in dump mode.
-                        ||if not set, use default store space.
-                        ||usually, you don't have to change the name here.
-  -fi,--file            ::dump data filename
-                        ||this parameter can only work in dump mode.
-                        ||if set, try dump data in a file
-                        ||if not set, just get data and show it in console.
+  -wf,--workerfilter    ::worker filter         default: all        (cmdline)
+  -ta,--taskid          ::check task work stat  default: None       (stat)
+  -li,--limit           ::dump data limit       default: -1 (all)   (dump,stat)
+  -nt,--nthread         ::thread number.        default: 32         (worker)
+  -er,--error           ::check error info by taskid.               (stat)
+  -sp,--space           ::dump data space       default: 'default'  (dump)
+  -fi,--file            ::dump data filename                        (dump)
   type<toggle>
-  -la,--latest          ::don't use taskid to check for the latest task
-                        ||this parameter can only work in stat
-  -ls,--list            ::list for check latest N task simple stat.
-                        ||this parameter can only work in stat
-  -cl,--clear           ::clear config, use initial configuration.
-                        ||this parameter can only work in config mode.
+  -la,--latest          ::check for the latest task                 (stat)
+  -ls,--list            ::list for check latest N task simple stat. (stat)
+  -cl,--clear           ::clear config, use initial configuration.  (config)
 
 [cmd info.]
   "vredis"              ::show default info
-  "vredis -h"           ::show default info
+  "vredis -h"           ::show all info
   "vredis --help"       ::show all info
 '''
 
@@ -113,11 +101,14 @@ cmdline_description = '''
 stat_description = '''
   stat                  ::[eg.] "vredis stat -ta 26"
     -ta,--taskid        ||this parameter can work in stat mode
-    -la,--latest        ::don't use taskid to check for the latest task
+    -la,--latest        ::[eg.] "vredis stat -la"
+                        ||don't use taskid to check for the latest task
                         ||this parameter can only work in stat
-    -ls,--list          ::list check cannot coexist with single task check
+    -ls,--list          ::[eg.] "vredis stat -ls"
+                        ||list check cannot coexist with single task check
                         ||this parameter can work in stat
-    -er,--error         ::check error info by taskid.
+    -er,--error         ::[eg.] "vredis stat -er 26"
+                        ||check error info by taskid.
                         ||this parameter can work in stat
 '''
 
@@ -144,16 +135,16 @@ worker_description = '''
   worker                ::[eg.] "vredis worker --host 192.168.0.77 --port 6666 --password vredis"
                         ||open a worker waiting task
                         ||all parameters of this command depend on default parameters
-                        ::[eg.] "vredis worker"  
-                        ||if vredis_config not set. 
-                        ||worker use defaults parameters connect redis server
-                        ||worker use host localhost
-                        ||worker use port 6379
-                        ||[ more info see defaults params ]
-                        ::[eg.] "vredis worker -ho 192.168.0.77 -po 6666 -pa vredis"
-                        ||worker use host "192.168.0.77"
-                        ||worker use port 6666
-                        ||worker use password vredis
+                        ::[eg.] "vredis worker"  (simple commond: use vredis_config)
+                        ||if use simpler commond and vredis_config not set.
+                        ||worker will use defaults parameters connect redis server
+                        ||worker use host       localhost
+                        ||worker use port       6379
+                        ||worker use password   None (python type:means no password)
+                        ||worker use db         0
+    -nt,--nthread       ::[eg.] "vredis worker -nt 64"
+                        ||thread number.        default: 32
+                        ||this parameter can only work in worker mode.
 '''
 
 config_description = '''
@@ -163,11 +154,11 @@ config_description = '''
                         ||cmd_config > vredis_config > init_config
                         ||cmd_config:       in cmdline
                         ||vredis_config:    over write defaults
-                        ||init_config:      localhost:6379 passworl:None db:0
+                        ||init_config:      localhost:6379 password:None db:0
     -cl,--clear         ::clear config
                         ||this parameter can only work in config mode.
                         ||use init_config as defaults config
-                        ||init_config:      localhost:6379 passworl:None db:0
+                        ||init_config:      localhost:6379 password:None db:0
 '''
 
 
@@ -187,7 +178,7 @@ def _print_help(argv):
         sys.exit(0)
     if len(argv) == 2 and \
            argv[1] in ['-h','--help']:
-        if argv[1] == '-h':     print(h_description)
+        if argv[1] == '-h':     print(help_description)
         if argv[1] == '--help': print(help_description)
         sys.exit(0)
 
@@ -198,8 +189,9 @@ def deal_with_worker(args):
     port    = defaults_conf.get('port')
     password= defaults_conf.get('password')
     db      = defaults_conf.get('db')
+    nthread = int(args.nthread)
     print('[ REDIS ] host:{}, port:{}'.format(host,port))
-    wk      = Worker.from_settings(host=host,port=port,password=password,db=db)
+    wk      = Worker.from_settings(host=host,port=port,password=password,db=db,VREDIS_WORKER_THREAD_RUN_NUM=nthread)
     wk.start()
 
 
@@ -510,6 +502,7 @@ def execute(argv=None):
     parse.add_argument('-ls','--list',          action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-la','--latest',        action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-li','--limit',         default=-1,         help=argparse.SUPPRESS)
+    parse.add_argument('-nt','--nthread',       default=32,         help=argparse.SUPPRESS)
     parse.add_argument('-er','--error',         default=None,       help=argparse.SUPPRESS)
     parse.add_argument('-sp','--space',         default='default',  help=argparse.SUPPRESS)
     parse.add_argument('-fi','--file',          default=None,       help=argparse.SUPPRESS)
