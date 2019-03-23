@@ -9,6 +9,7 @@
 # 然后使用下面的方式部署就可以使用。
 # 仅依赖安装 redis 库。
 # 开发于 python3.6 版本。
+# 一次部署，任意任务、任意次执行，且多任务互不干扰。
 
 
 【 基础配置 】：
@@ -45,7 +46,7 @@
 - ##### 安装方式
 
 ```bash
-# 1）通过 pip 直接从pypi上下载安装
+# 1）通过 pip 直接从pypi上下载安装（pip直接下载的名字后面有.py，请注意别下载错了。）
 C:\Users\Administrator>pip install vredis.py
 # 2）通过 pip+git 从github上下载安装
 C:\Users\Administrator>pip install git+https://github.com/cilame/vredis.git
@@ -264,6 +265,7 @@ current defaults [use -cl/--clear clear this settings]:
 
 ```
 1 方便的开启，简约的脚本使用方式，以及更加友好的部署
+    一次部署，任意任务、任意次执行，且多任务互不干扰
     只需要用该库的命令行指令连接上 redis，就能为分布式脚本提供一个可执行的算力。
     装饰器接口可以让开发者自由的从本机与分布式来回切换。
     部署上不是传统的 sender -> master -> worker 模式开发，
@@ -281,6 +283,8 @@ current defaults [use -cl/--clear clear this settings]:
     并且，考虑到 worker 端可能意外断开的情况，所以设计了任务缓冲区进行对任务完整性的保护。
 4 简单的日志信息
     例如你想看23号任务的执行情况你可以在安装工具后使用 "vredis stat -ta 23" 指令查看（通过默认redis配置查看）
+    想查看最新的任务情况使用 "vredis stat -la"
+    想查看最新的N个任务的简要状态 "vredis stat -ls"
 
 因为有任务安全、部署简单这两点，所有有一个最大的优势：
     只需一个redis服务器，你可以以最快的速度搜集闲散资源来实现你的分布式。
