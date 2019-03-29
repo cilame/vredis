@@ -260,7 +260,7 @@ def deal_with_dump(args):
                         f.write(pre+'\n') # 最后一行不加逗号
                     break
             if idx not in logidx: 
-                print('[ TABLE ] file: {} dump number: {}.'.format(file, idx))
+                print('[ TABLE ]     dump_file: {} dump_number: {}.'.format(file, idx))
             f.write(']')
 
     if space is not None:

@@ -70,6 +70,36 @@ class _Table:
                 for ret in self.sender.rds.lrange(table,start,end):
                     yield json.loads(ret)
 
+class _Table2:
+    def __init__(self, sender, taskid, table, limit=-1):
+        self.sender = sender
+        self.taskid = taskid
+        self.table  = table
+        self.limit  = limit
+
+    def __iter__(self):
+        table = '{}:{}:{}'.format(defaults.VREDIS_DATA, self.taskid, self.table)
+        lens = self.sender.rds.llen(table)
+        def check_stop():
+            stop = []
+            dt = self.sender.get_stat(self.taskid)
+            if dt is not None:
+                dt.pop('all')
+                kt = sorted(dt,key=lambda i:int(i))
+                for idx,key in enumerate(kt):
+                    stop.append(bool(dt[key]['stop']))
+                stop = all(stop)
+            return stop
+
+        stop = False
+        while lens or not stop:
+            for _ in range(lens):
+                _, ret = self.sender.rds.brpop(table, defaults.VREDIS_DATA_TIMEOUT)
+                yield json.loads(ret)['data']
+            time.sleep(3)
+            lens = self.sender.rds.llen(table)
+            stop = check_stop()
+
 
 class Pipe:
     def __init__(self,):
@@ -89,6 +119,7 @@ class Pipe:
         self.lock       = RLock()
         self.tlock      = 0
         self.send_cnt   = 0
+        self.tableiter  = {}
 
     def get_config_from_homepath(self):
         defaults_conf = dict(
@@ -164,7 +195,10 @@ class Pipe:
                         # 实时模式则先发送任务，直接实时传输任务即可。
                         self.send_work()
                     self.unstart = False
+                if func.__name__ not in self.tableiter:
+                    self.tableiter[func.__name__] = _Table2(self.sender, self.tid, plus.get('table'), limit=-1)
             self.task_sender(self.tid, func.__name__, args, kwargs, plus, self.KEEPALIVE)
+        _wrapper.datas = lambda: self.tableiter[func.__name__]
         return _wrapper
 
 
@@ -337,6 +371,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.1.8'
+__version__ = '1.2.0'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'

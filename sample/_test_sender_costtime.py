@@ -11,7 +11,6 @@ from _test_config import host,password
 from vredis import pipe
 
 pipe.connect(host=host,port=6379,password=password)
-#pipe.from_settings(VREDIS_LIMIT_LOG_WORKER_NUM=10) # 队列过多时默认只显示前10条workerid，如需显示完整需要修改这里。
 pipe.DEBUG = True # worker端是否进行控制台打印。(默认False)
 #pipe.DUMPING = True # 是否进行item数据本地存储。(默认False)
 pipe.KEEPALIVE = True # 是否保持链接，如果是，worker 端将监控发送端是否链接，若是 sender 端断开则停止任务。（默认True）
@@ -30,19 +29,26 @@ def some(i):
     rd = random.randint(1,2)
     #time.sleep(rd)
     print('use func:{}, rd time:{}'.format(i,rd))
-    return 123
+    yield 123,rd
 
 @pipe
 def some2(i):
     if i%50==0: 
         print('rasie',i)
         raise # 测试异常
-    #print('use func2:{}'.format(i))
-    return [[333333,'你好']]
+    yield [333333,'你好']
 
-for i in range(300):
+for i in range(30):
     #print(i)
     some2(i)
     some(i)
+
+# 被包装的函数对象将自动增加一个datas的方法，直接获取数据迭代器
+# 直接迭代获取数据，如果任务未停止将会无限迭代下去。
+for i in some.datas():
+    print(i)
+
+for j in some2.datas():
+    print(j)
 
 print('=========================')
