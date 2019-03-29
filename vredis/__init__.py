@@ -134,12 +134,14 @@ class Pipe:
         self.sender = Sender.from_settings(**self.settings)
         return self
 
-    def __call__(self, func, **plus):
+    def __call__(self, func, **_plus):
         if self.DUMPING == True and self.KEEPALIVE == False:
             raise SettingError('DUMPING==True mode must work in KEEPALIVE==True mode.')
 
         src = inspect.getsource(func)
         src = '\n'.join(filter(lambda i:not i.strip().startswith('@'), src.splitlines()))+'\n'
+        plus = {'table':func.__name__}
+        plus.update(_plus)
         self.script += src
         def _wrapper(*args, **kwargs):
             with self.lock:

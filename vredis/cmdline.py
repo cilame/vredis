@@ -220,7 +220,7 @@ def deal_with_dump(args):
     password= defaults_conf.get('password')
     db      = defaults_conf.get('db')
     limit   = int(args.limit) # -1 all
-    space   = args.space # 'default'
+    space   = args.space # None
     file    = args.file # None
     if args.taskid is None:
         print(dump_description)
@@ -228,13 +228,12 @@ def deal_with_dump(args):
         print('[eg.] "vredis dump -ta 23 -li 100 -fi some.json"')
         return
     taskid  = int(args.taskid)
-    tablespace = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, space)
     print('[ REDIS ] host:{}, port:{}'.format(host,port))
     sd      = Sender.from_settings(host=host,port=port,password=password,db=db)
-    print('[ TABLE ] space:{}.'.format(space))
-    print('[ TABLE ] all number:{}.'.format(sd.rds.llen(tablespace)))
 
-    if file is not None:
+    def _dump(space,file):
+        print('[ TABLE ] tablespace:{}.  collect number:{}.'.format(
+            tablespace.rsplit(':',1)[1],sd.rds.llen(tablespace)))
         path,name = os.path.split(file)
         path      = path if path.strip() else os.getcwd()
         if not os.path.exists(path):
@@ -261,11 +260,60 @@ def deal_with_dump(args):
                         f.write(pre+'\n') # 最后一行不加逗号
                     break
             if idx not in logidx: 
-                print('all dump number:{}.'.format(idx))
+                print('[ TABLE ] file: {} dump number: {}.'.format(file, idx))
             f.write(']')
+
+    if space is not None:
+        tablespace = '{}:{}:{}'.format(defaults.VREDIS_DATA, taskid, space)
     else:
-        for data in _Table(sd, taskid, space, 'range', limit=limit):
-            print(data)
+        tablespaces = []
+        for table in sd.rds.keys('{}:{}*'.format(defaults.VREDIS_DATA, taskid)):
+            tablespaces.append(table.decode())
+        if len(tablespaces) == 0:
+            print('no data.')
+            return
+        elif len(tablespaces) == 1:
+            tablespace = tablespaces[0]
+            space = tablespace.rsplit(':',1)[1]
+        else:
+            print('[ TIPS ] dump filename not set(-fi,--file), show the latest 10 data by default.')
+            print('[ TIPS ] if set, default is -1(means all).')
+            if file is not None:
+                files = list(map(lambda file:file if file.endswith('.json') else file+'.json', file.split(',')))
+                if len(files) != len(tablespaces):
+                    print('[ WARNING! ] multiple table space dumps, you should use multiple tablespaces(use "," split ).')
+                    print('[ WARNING! ] multiple table space dumps, pls ensure space_num == tables_num.')
+                    print('[ WARNING! ][eg.] "vredis dump -ta 23 -sp tablespace1,tablespace2 -fi filename,filename2"')
+                    print('[ WARNING! ][eg.] "vredis dump -ta 23 -fi filename,filename2" (simplify)')
+                    print('[ TABLE ] tablespace number: {}'.format(len(tablespaces)))
+                    for tablespace in tablespaces:
+                        space = tablespace.rsplit(':',1)[1]
+                        print('[ TABLE ] tablespace:{:>10}. collect number:{}.'.format(space,sd.rds.llen(tablespace)))
+                elif len(set(files)) != len(files):
+                    print('[ WARNING! ] make sure that all filenames are not duplicated.')
+                else:
+                    for tablespace,file in zip(tablespaces,files):
+                        space = tablespace.rsplit(':',1)[1]
+                        _dump(space,file)
+            else:
+                for tablespace in tablespaces:
+                    space = tablespace.rsplit(':',1)[1]
+                    print('[ TABLE ] tablespace:{}. collect number:{}.'.format(space,sd.rds.llen(tablespace)))
+                    limit = limit if limit != -1 else 10
+                    for idx,data in enumerate(_Table(sd, taskid, space, 'range', limit=limit)):
+                        print('{:>3}|'.format(idx+1),data)
+            return
+
+    if file is not None:
+        _dump(space,file)
+    else:
+        print('[ TIPS ] dump filename not set, show the latest 10 data by default.')
+        print('[ TIPS ] if set, default is -1(means all).')
+        print('[ TABLE ] tablespace:{}.  collect number:{}.'.format(
+            tablespace.rsplit(':',1)[1],sd.rds.llen(tablespace)))
+        limit = limit if limit != -1 else 10
+        for idx,data in enumerate(_Table(sd, taskid, space, 'range', limit=limit)):
+            print('{:>3}|'.format(idx+1),data)
 
 
 def deal_with_version(args):
@@ -504,7 +552,7 @@ def execute(argv=None):
     parse.add_argument('-li','--limit',         default=-1,         help=argparse.SUPPRESS)
     parse.add_argument('-nt','--nthread',       default=32,         help=argparse.SUPPRESS)
     parse.add_argument('-er','--error',         default=None,       help=argparse.SUPPRESS)
-    parse.add_argument('-sp','--space',         default='default',  help=argparse.SUPPRESS)
+    parse.add_argument('-sp','--space',         default=None,       help=argparse.SUPPRESS)
     parse.add_argument('-fi','--file',          default=None,       help=argparse.SUPPRESS)
     _print_help(argv)
 
