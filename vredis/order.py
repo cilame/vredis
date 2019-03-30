@@ -54,6 +54,7 @@ def cmdline_command(cls, taskid, workerid, order):
 def script_command(cls, taskid, workerid, order):
     taskid,workerid,order,rds,valve,rdm = find_task_locals_by_thread()
     with common.Initer.lock:
-        taskenv = TaskEnv(taskid)
+        taskenv = TaskEnv(taskid,worker=cls)
         taskenv.mk_env_locals(valve.VREDIS_SCRIPT)
         taskenv.mk_task_locals((taskid,workerid,order,rds,valve,rdm))
+        del taskenv

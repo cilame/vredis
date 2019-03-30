@@ -20,26 +20,26 @@ pipe.KEEPALIVE = True # 是否保持链接，如果是，worker 端将监控发�
 # 1 如果是一般数据类型，会以字典的方式装包并自动 put 进默认表里。
 # 2 如果是可迭代的话，会在迭代出来后，以字典的方式装包并自动 put 进默认表里。
 
+t = False
+
 @pipe.table('fooltable')
-def some(i):
-    if i%50==0: 
-        raise # 测试异常
+def some(i,t):
+    if i%50==0 and t: raise # 测试异常
     import time, random
     rd = random.randint(1,2)
     #time.sleep(rd)
-    print('use func:{}, rd time:{}'.format(i,rd))
+    if t: print('use func:{}, rd time:{}'.format(i,rd))
     yield 123,rd
 
 @pipe
-def some2(i):
-    if i%50==0: 
-        raise # 测试异常
+def some2(i,t):
+    if i%50==0 and t: raise # 测试异常
     yield [333333,'你好']
 
-for i in range(300):
+for i in range(1):
     #print(i)
-    some2(i)
-    some(i)
+    some2(i,t)
+    some(i,t)
 
 # 被包装的函数对象将自动增加一个datas的方法，直接获取数据迭代器
 # 直接迭代获取数据，如果任务未停止将会无限迭代下去。

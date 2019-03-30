@@ -186,8 +186,11 @@ class Worker(common.Initer):
                 ret, rdata = from_pipeline_execute(self, etask)
                 with common.Initer.lock: 
                     if etask not in self.tasklist:
-                        self.clear_tail[etask] -= 1
-                        if self.clear_tail[etask] == 0: self.clear_tail.pop(etask)
+                        if etask in self.clear_tail:
+                            if self.clear_tail[etask] == 0: 
+                                self.clear_tail.pop(etask)
+                            else:
+                                self.clear_tail[etask] -= 1
                         if ret: self.rds.rpush('{}:{}'.format(defaults.VREDIS_TASK, etask), ret)
                         continue
                     else:
@@ -264,7 +267,7 @@ class Worker(common.Initer):
                             pass
                     finally:
                         TaskEnv.decr(self.rds, taskid, self.workerid)
-                with common.Initer.lock: 
+                with common.Initer.lock:
                     self.clear_tail[etask] -= 1
 
             time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)

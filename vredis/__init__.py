@@ -2,6 +2,7 @@ import inspect
 import time
 import json
 import queue
+import re
 import os
 import math
 from threading import Thread, RLock
@@ -10,8 +11,12 @@ from threading import Thread, RLock
 from . import defaults
 from .sender import Sender
 from .worker import Worker
-from .error import SenderAlreadyStarted,NotInDefaultType,SettingError,TaskUnstopError
-
+from .error import (
+    SenderAlreadyStarted,
+    NotInDefaultType,
+    SettingError,
+    TaskUnstopError
+)
 
 
 class _Table:
@@ -124,6 +129,7 @@ class Pipe:
         self.tlock      = 0
         self.send_cnt   = 0
         self.tableiter  = {}
+        self.pplus      = {}
 
     def get_config_from_homepath(self):
         defaults_conf = dict(
@@ -169,6 +175,20 @@ class Pipe:
         self.sender = Sender.from_settings(**self.settings)
         return self
 
+    # 对脚本魔改，让其在exec中能够找到其他函数，使其内部的原函数和其他函数执行变成将函数任务传入任务队列的函数
+    # 有点类似 scrapy yield Request, 但是更为直观和方便。
+    def script_boost(self, taskid, script):
+        allfuncs = dict(re.findall(r'(?:^|\n)def +(\S+) *\(.*?\) *:\n(\s+)',script))
+        if not allfuncs: return script
+        mkholder = re.sub(r'(^|\n)def +(?P<func>\S+) *\((?P<params>.*?)\) *:\n(?P<prespace>\s+)',
+                   r'\1def \g<func>(\g<params>):\n\g<prespace>$__func_\g<func>_placeholder__\n\g<prespace>',script)
+        afunc = list(map(lambda i:'{} = pipefunc({},"{}",{})'.format(i,taskid,i,self.pplus[i]),allfuncs))
+        for funcname in allfuncs:
+            mkholder = mkholder.replace('$__func_{}_placeholder__'.format(funcname), 
+                                        '\n'.join(map(lambda i:'{}{}'.format(allfuncs[funcname],i),afunc)).strip())
+        return mkholder
+
+
     def __call__(self, func, **_plus):
         if self.DUMPING == True and self.KEEPALIVE == False:
             raise SettingError('DUMPING==True mode must work in KEEPALIVE==True mode.')
@@ -177,6 +197,7 @@ class Pipe:
         src = '\n'.join(filter(lambda i:not i.strip().startswith('@'), src.splitlines()))+'\n'
         plus = {'table':func.__name__}
         plus.update(_plus)
+        self.pplus[func.__name__] = plus.copy()
         self.script += src
         def _wrapper(*args, **kwargs):
             with self.lock:
@@ -184,6 +205,7 @@ class Pipe:
                     self.sender = self.sender if self.sender is not None else Sender.from_settings(**self.settings)
                     self.tid    = self.sender.get_taskid()
                     self.sender.rds.hset(defaults.VREDIS_WORKER, '{}@stamp'.format(self.tid), int(time.time()))
+                    self.script = self.script_boost(self.tid, self.script)
                     if self.QUICK_SEND:
                         # 多线程池任务发送
                         self.quicker_send_task()
@@ -375,6 +397,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.2.1'
+__version__ = '1.2.2'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'

@@ -1,17 +1,23 @@
 import sys
 import inspect
+from queue import Queue
+from threading import Thread
 #import logging
 
 from . import common
 from . import defaults
-from .pipeline import send_to_pipeline_real_time
+from .pipeline import (
+    send_to_pipeline_real_time,
+    send_to_pipeline_execute
+)
 from .error import (
     NotInDefaultsSetting,
     NotInDefaultCommand,
     MustDictType,
     MustInSubcommandList,
     MustInCommandList,
-    UndevelopmentSubcommand
+    UndevelopmentSubcommand,
+    SettingError
 )
 
 __org_stdout__ = sys.stdout
@@ -127,6 +133,9 @@ def check_connect_sender(rds, taskid, sender_pubn):
 
 # 检查链接状态
 def check_connect_worker(rds, workerid, workeridd):
+    # 目前的处理方法不能稳定返回正常的连接状态，并且redis中暂未找到解决方案。
+    # 所以将这里以返回True的方式锁住，以后 redis 有更好的解决方法这里再改。
+    return True
     rname = '{}:{}'.format(defaults.VREDIS_PUBLISH_WORKER, workerid)
     #print(rds.pubsub_numsub(rname),workeridd)
     return bool(rds.pubsub_numsub(rname)[0][1] >= workeridd[workerid])
@@ -185,11 +194,30 @@ class Valve:
         Valve.__valves__ = {}
 
 
+funcqueue = Queue()
+def quick_sender():
+    def _send_in_worker():
+        while True:
+            taskid,funcname,args,kwargs,plus = funcqueue.get()
+            send_to_pipeline_execute(TaskEnv.__worker__,taskid,funcname,args,kwargs,plus)
+    for _ in range(defaults.VREDIS_SENDER_THREAD_SEND):
+        Thread(target=_send_in_worker).start()
+def pipefunc(taskid, funcname, plus):
+    if TaskEnv.__worker__ is None:
+        raise SettingError('Un Init Worker.')
+    def _wrapper(*args,**kwargs):
+        funcqueue.put((taskid,funcname,args,kwargs,plus))
+    return _wrapper
+
 # 任务执行环境的处理，这里的类和阀门类很类似，不过主要是用于在缓存里面存放脚本环境的一种方式
 class TaskEnv:
     __taskenv__ = {}
-    def __init__(self,taskid,groupid=None):
+    __worker__ = None
+    def __init__(self,taskid,groupid=None,worker=None):
         self.keyid = taskid if groupid is None else groupid
+        if TaskEnv.__worker__ is None:
+            TaskEnv.__worker__ = worker
+            quick_sender()
         if order_filter(): 
             if self.keyid not in TaskEnv.__taskenv__:
                 TaskEnv.__taskenv__[self.keyid] = { 'env_local':{},
@@ -301,6 +329,11 @@ for __very_unique_item__ in locals():
                     m, n = 0, 0
                     if valve.VREDIS_HOOKCRASH is None: return False
                     for workerid in valve.VREDIS_HOOKCRASH:
+                        # 目前发现一个严重的问题，check_connect_worker 并不一定能检测到是否连接
+                        # 所以之前的大部分期望保证任务完整性的开发在这一个redis目前无法解决的问题上只能妥协
+                        # 也就是说，目前将会暂时将这里用一个简单的逻辑锁住。 check_connect_worker 函数只返回True。
+                        # 对于使用者来说，不能像之前那样期望从断线的 worker 的任务缓冲中回收任务了。
+                        # 不过，现在就只是要保证 worker 端尽量稳定开启状态了。等以后redis解决问题后再考虑修改检查方法。
                         if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
                             _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
                             _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
@@ -321,17 +354,18 @@ for __very_unique_item__ in locals():
                     # 但是从数量上看非常有限，对数据的收集没有大影响。至少为了不漏缺收集数据，这些处理都很有必要。
                     _stamp = '{}::{}'.format(m,n)
                     _stime = TaskEnv.stamp_times(_stamp, taskid)
-                    print(_stamp,_stime)
+                    # print(_stamp,_stime)
                     if _stime > 6:
                         if _stime > 8:
                             return True
                         for workerid in valve.VREDIS_HOOKCRASH:
-                            _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
-                            _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
-                            _nlock = '{}@lock{}'.format(taskid, workerid)
-                            while rds.llen(_cname) != 0:
-                                rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
-                            rds.hset(defaults.VREDIS_WORKER, _nlock, 0)
+                            if not check_connect_worker(rds, workerid, valve.VREDIS_HOOKCRASH):
+                                _rname = '{}:{}'.format(defaults.VREDIS_TASK, taskid)
+                                _cname = '{}:{}:{}'.format(defaults.VREDIS_TASK_CACHE, taskid, workerid)
+                                _nlock = '{}@lock{}'.format(taskid, workerid)
+                                while rds.llen(_cname) != 0:
+                                    rds.brpoplpush(_cname, _rname, defaults.VREDIS_TASK_TIMEOUT)
+                                rds.hset(defaults.VREDIS_WORKER, _nlock, 0)
                         
 
 
