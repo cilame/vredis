@@ -27,3 +27,7 @@ class PathNotExists(Exception):
 
 class SettingError(Exception):
     pass
+
+class TaskUnstopError(Exception):
+    pass
+

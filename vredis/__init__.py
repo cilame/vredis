@@ -10,7 +10,7 @@ from threading import Thread, RLock
 from . import defaults
 from .sender import Sender
 from .worker import Worker
-from .error import SenderAlreadyStarted,NotInDefaultType,SettingError
+from .error import SenderAlreadyStarted,NotInDefaultType,SettingError,TaskUnstopError
 
 
 
@@ -28,14 +28,14 @@ class _Table:
             v = self.sender.get_stat(self.taskid)
             if v is None:
                 print('no stat taskid:{}.'.format(self.taskid))
-                raise 'cannot get stat.'
+                raise SettingError('cannot get stat.')
             close = True
             for key,value in v.items():
                 if key != 'all':
                     if value.get('stop',0) == 0:
                         close = False
             if not close:
-                raise 'unstop task.' 
+                raise TaskUnstopError('unstop task.' )
                 # 目前对非停止的任务进行数据抽取的话是会直接抛出异常的。
                 # 因为目前开发是通过检查 redis 管道的长度来一次性抽取数据的，
                 # 如果忽略任务停止的部分直接抽取可能就只能抽一部分。
@@ -375,6 +375,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.2.0'
+__version__ = '1.2.1'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'

@@ -9,7 +9,7 @@ from . import defaults
 from .__init__ import __version__, _Table
 from .worker import Worker
 from .sender import Sender
-from .error import PathNotExists
+from .error import PathNotExists,TaskUnstopError
 
 vredis_command_types = ['cmdline', 'worker','stat','stop','config','dump','version']
 
@@ -62,7 +62,7 @@ command
   config    config default host,port,password,db
   version   check vredis version
 {}
-defaults
+options
   type<param>
   -ho,--host            ::redis host.           default: localhost
   -po,--port            ::redis port.           default: 6379
@@ -78,10 +78,14 @@ defaults
   type<toggle>
   -la,--latest          ::check for the latest task                 (stat)
   -ls,--list            ::list for check latest N task simple stat. (stat)
+  -fo,--force           ::force dump data when the task incomplete. (dump)
   -cl,--clear           ::clear config, use initial configuration.  (config)
 
 [cmd info.]
   "vredis"              ::show default info
+  "vredis stat"         ::show stat info
+  "vredis stop"         ::show stop info
+  "vredis dump"         ::show dump info
   "vredis -h"           ::show all info
   "vredis --help"       ::show all info
 '''
@@ -119,8 +123,9 @@ stop_description = '''
 
 dump_description = '''
   dump                  ::[eg.] "vredis dump -ta 26"
-    -li,--limit         ::dump data limit       default: -1 (all)
+    -li,--limit         ::dump data limit       default: -1 (means all)
                         ||this parameter can only work in (dump,stat) mode.
+                        ||when -fi not set, this parameter will reset 10. for easy show data.
     -sp,--space         ::dump data space       default: 'default'
                         ||this parameter can only work in dump mode.
                         ||if not set, use default store space.
@@ -129,6 +134,8 @@ dump_description = '''
                         ||this parameter can only work in dump mode.
                         ||if set, try dump data in a local file
                         ||if not set, just get data and show it in console.
+    -fo,--force         ::force dump toggle
+                        ||force dump data when the task incomplete.
 '''
 
 worker_description = '''
@@ -155,7 +162,8 @@ config_description = '''
                         ||cmd_config:       in cmdline
                         ||vredis_config:    over write defaults
                         ||init_config:      localhost:6379 password:None db:0
-    -cl,--clear         ::clear config
+    -cl,--clear         ::[eg.] "vredis config -cl"
+                        ||clear config
                         ||this parameter can only work in config mode.
                         ||use init_config as defaults config
                         ||init_config:      localhost:6379 password:None db:0
@@ -222,6 +230,7 @@ def deal_with_dump(args):
     limit   = int(args.limit) # -1 all
     space   = args.space # None
     file    = args.file # None
+    force   = int(args.force)
     if args.taskid is None:
         print(dump_description)
         print('pls set param:taskid for dump task.')
@@ -239,12 +248,18 @@ def deal_with_dump(args):
         if not os.path.exists(path):
             raise PathNotExists(path)
         filepath  = os.path.join(path,name)
+        try:
+            TABLE = iter(_Table(sd, taskid, space, 'range', ignore_stop=bool(force), limit=limit))
+            logidx = [next(TABLE)]
+            pre = json.dumps(logidx[0])
+        except TaskUnstopError:
+            print('[ WARNING! ] task {} All stop labels did not stop completely'.format(taskid))
+            print('[ WARNING! ] if you confirm that you want dump data, pls add -fo,--force')
+            print('[ WARNING! ][eg.] "vredis dump -ta 23 -fi filename -fo"')
+            return
         with open(filepath,'a',encoding='utf-8') as f:
             f.write('[\n')
-            idx = 0
-            TABLE = iter(_Table(sd, taskid, space, 'range', limit=limit))
-            logidx = []
-            pre = None
+            idx = 1
             while True:
                 try:
                     data = next(TABLE)
@@ -260,7 +275,7 @@ def deal_with_dump(args):
                         f.write(pre+'\n') # 最后一行不加逗号
                     break
             if idx not in logidx: 
-                print('[ TABLE ]     dump_file: {} dump_number: {}.'.format(file, idx))
+                print('[ TABLE ] ==== dump_file: {} dump_number: {}.'.format(file, idx))
             f.write(']')
 
     if space is not None:
@@ -300,7 +315,7 @@ def deal_with_dump(args):
                     space = tablespace.rsplit(':',1)[1]
                     print('[ TABLE ] tablespace:{}. collect number:{}.'.format(space,sd.rds.llen(tablespace)))
                     limit = limit if limit != -1 else 10
-                    for idx,data in enumerate(_Table(sd, taskid, space, 'range', limit=limit)):
+                    for idx,data in enumerate(_Table(sd, taskid, space, 'range', ignore_stop=True, limit=limit)):
                         print('{:>3}|'.format(idx+1),data)
             return
 
@@ -312,7 +327,7 @@ def deal_with_dump(args):
         print('[ TABLE ] tablespace:{}.  collect number:{}.'.format(
             tablespace.rsplit(':',1)[1],sd.rds.llen(tablespace)))
         limit = limit if limit != -1 else 10
-        for idx,data in enumerate(_Table(sd, taskid, space, 'range', limit=limit)):
+        for idx,data in enumerate(_Table(sd, taskid, space, 'range', ignore_stop=True, limit=limit)):
             print('{:>3}|'.format(idx+1),data)
 
 
@@ -548,6 +563,7 @@ def execute(argv=None):
     parse.add_argument('-ta','--taskid',        default=None,       help=argparse.SUPPRESS)
     parse.add_argument('-cl','--clear',         action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-ls','--list',          action='store_true',help=argparse.SUPPRESS)
+    parse.add_argument('-fo','--force',         action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-la','--latest',        action='store_true',help=argparse.SUPPRESS)
     parse.add_argument('-li','--limit',         default=-1,         help=argparse.SUPPRESS)
     parse.add_argument('-nt','--nthread',       default=32,         help=argparse.SUPPRESS)
