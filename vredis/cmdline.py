@@ -250,8 +250,8 @@ def deal_with_dump(args):
         filepath  = os.path.join(path,name)
         try:
             TABLE = iter(_Table(sd, taskid, space, 'range', ignore_stop=bool(force), limit=limit))
-            logidx = [next(TABLE)]
-            pre = json.dumps(logidx[0])
+            logidx = [0]
+            pre = json.dumps(next(TABLE)['data'])
         except TaskUnstopError:
             print('[ WARNING! ] task {} All stop labels did not stop completely'.format(taskid))
             print('[ WARNING! ] if you confirm that you want dump data, pls add -fo,--force')
@@ -262,7 +262,7 @@ def deal_with_dump(args):
             idx = 1
             while True:
                 try:
-                    data = next(TABLE)
+                    data = next(TABLE)['data']
                     if pre is not None: 
                         f.write(pre+',\n')
                     idx += 1
@@ -316,11 +316,11 @@ def deal_with_dump(args):
                     print('[ TABLE ] tablespace:{}. collect number:{}.'.format(space,sd.rds.llen(tablespace)))
                     limit = limit if limit != -1 else 10
                     for idx,data in enumerate(_Table(sd, taskid, space, 'range', ignore_stop=True, limit=limit)):
-                        print('{:>3}|'.format(idx+1),data)
+                        print('{:>3}|'.format(idx+1),data['data'])
             return
 
     if file is not None:
-        _dump(space,file)
+        _dump(space,file if file.endswith('.json') else file+'.json')
     else:
         print('[ TIPS ] dump filename not set, show the latest 10 data by default.')
         print('[ TIPS ] if set, default is -1(means all).')
@@ -328,7 +328,7 @@ def deal_with_dump(args):
             tablespace.rsplit(':',1)[1],sd.rds.llen(tablespace)))
         limit = limit if limit != -1 else 10
         for idx,data in enumerate(_Table(sd, taskid, space, 'range', ignore_stop=True, limit=limit)):
-            print('{:>3}|'.format(idx+1),data)
+            print('{:>3}|'.format(idx+1),data['data'])
 
 
 def deal_with_version(args):
