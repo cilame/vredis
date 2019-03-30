@@ -12,7 +12,7 @@ from vredis import pipe
 
 pipe.connect(host=host,port=6379,password=password)
 pipe.DEBUG = True # worker端是否进行控制台打印。(默认False)
-#pipe.DUMPING = True # 是否进行item数据本地存储。(默认False)
+pipe.DUMPING = False # 是否进行item数据本地存储。(默认False)
 pipe.KEEPALIVE = True # 是否保持链接，如果是，worker 端将监控发送端是否链接，若是 sender 端断开则停止任务。（默认True）
 
 # 被包装的函数在 worker 端执行时，
@@ -23,7 +23,6 @@ pipe.KEEPALIVE = True # 是否保持链接，如果是，worker 端将监控发�
 @pipe.table('fooltable')
 def some(i):
     if i%50==0: 
-        print('rasie',i)
         raise # 测试异常
     import time, random
     rd = random.randint(1,2)
@@ -34,21 +33,20 @@ def some(i):
 @pipe
 def some2(i):
     if i%50==0: 
-        print('rasie',i)
         raise # 测试异常
     yield [333333,'你好']
 
-for i in range(30):
+for i in range(300):
     #print(i)
     some2(i)
     some(i)
 
 # 被包装的函数对象将自动增加一个datas的方法，直接获取数据迭代器
 # 直接迭代获取数据，如果任务未停止将会无限迭代下去。
-for i in some.datas():
-    print(i)
+# for i in some.datas():
+#     print(i)
 
-for j in some2.datas():
-    print(j)
+# for j in some2.datas():
+#     print(j)
 
-print('=========================')
+# print('=========================')

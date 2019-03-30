@@ -321,7 +321,7 @@ for __very_unique_item__ in locals():
                     # 但是从数量上看非常有限，对数据的收集没有大影响。至少为了不漏缺收集数据，这些处理都很有必要。
                     _stamp = '{}::{}'.format(m,n)
                     _stime = TaskEnv.stamp_times(_stamp, taskid)
-                    #print(_stamp,_stime)
+                    print(_stamp,_stime)
                     if _stime > 6:
                         if _stime > 8:
                             return True

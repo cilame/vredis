@@ -174,10 +174,24 @@ class Worker(common.Initer):
             with common.Initer.lock: self._thread_num -= 1
 
     def _thread_run(self):
+        self.clear_tail = {}
         while True:
             for etask in list(TaskEnv.__taskenv__):
                 # 为了安全的实现 worker 的缓冲任务能够在crash后分派给别的任务，这里替换成新的处理方式
+                with common.Initer.lock: 
+                    if etask not in self.tasklist:
+                        continue
+                    if etask not in self.clear_tail:
+                        self.clear_tail[etask] = 0
                 ret, rdata = from_pipeline_execute(self, etask)
+                with common.Initer.lock: 
+                    if etask not in self.tasklist:
+                        self.clear_tail[etask] -= 1
+                        if self.clear_tail[etask] == 0: self.clear_tail.pop(etask)
+                        if ret: self.rds.rpush('{}:{}'.format(defaults.VREDIS_TASK, etask), ret)
+                        continue
+                    else:
+                        self.clear_tail[etask] += 1
                 if rdata:
                     taskid      = rdata['taskid']
                     func_name   = rdata['function']
@@ -250,6 +264,8 @@ class Worker(common.Initer):
                             pass
                     finally:
                         TaskEnv.decr(self.rds, taskid, self.workerid)
+                with common.Initer.lock: 
+                    self.clear_tail[etask] -= 1
 
             time.sleep(defaults.VREDIS_WORKER_IDLE_TIME)
 

@@ -43,7 +43,7 @@ class Sender(common.Initer):
         if not workernum: return
         if self.dumping: 
             self.dumping_stop = False
-            self.dumping_queue = [] # 实时数据保存时需要用的部分。
+            self.dumping_queues = {} # 实时数据保存时需要用的部分。
         self.ntaskstop = 0
         def _logger():
             while self.keepalive:
@@ -52,7 +52,11 @@ class Sender(common.Initer):
                     with self.lock:
                         if runinfo['dumps']:
                             if self.dumping:
-                                self.dumping_queue.append(runinfo['msg'])
+                                datamsg = json.loads(runinfo['msg'])
+                                table,data = datamsg['table'],json.dumps(datamsg['data'])
+                                if table not in self.dumping_queues:
+                                    self.dumping_queues[table] = []
+                                self.dumping_queues[table].append(data)
                         else:
                             print(runinfo['msg']) # 从显示的角度来看，这里只显示 realtime 的返回，数据放在管道里即可。
                 if self.taskstop and runinfo is None:
@@ -63,17 +67,22 @@ class Sender(common.Initer):
                             self.dumping_stop = True
                     break
         def _dumper():
-            with open('%04d%02d%02d-%02d%02d%02d.json'%time.localtime()[:6], 'w', 
-                            encoding='utf-8',
-                            buffering=8192 ) as f:
-                f.write('[\n')
-                while not self.taskstop:
-                    if len(self.dumping_queue)>1:
-                        f.write(self.dumping_queue.pop(0) + ',\n')
+            files = {}
+            while not self.taskstop:
+                for table in list(self.dumping_queues):
+                    if table not in files: 
+                        files[table] = open('%04d%02d%02d-%02d%02d%02d-%s.json'%(time.localtime()[:6] + (table,)), 'w', 
+                                            encoding='utf-8',
+                                            buffering=1024 )
+                        files[table].write('[\n')
+                    while len(self.dumping_queues[table])>1:
+                        files[table].write(self.dumping_queues[table].pop(0) + ',\n')
                     else:
                         time.sleep(.15)
-                if self.dumping_queue:
-                    f.write(self.dumping_queue.pop(0) + '\n]')
+            for table in list(self.dumping_queues):
+                if self.dumping_queues[table]:
+                    files[table].write(self.dumping_queues[table].pop(0) + '\n]')
+                    files[table].close()
         for _ in range(defaults.VREDIS_SENDER_THREAD_SEND):
             Thread(target=_logger).start()
         if self.dumping:

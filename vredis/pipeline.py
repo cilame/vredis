@@ -172,7 +172,7 @@ def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
         return
 
     def mk_sdata(data):
-        return json.dumps({'data': data,})
+        return json.dumps({'table': table, 'data': data})
 
     its = []
     dt = None
@@ -209,7 +209,6 @@ def send_to_pipeline_data(cls, taskid, data, ret, table='default', valve=None):
                 pipe.lpush(_rname, dt)
                 n += 1
         pipe.lrem(_cname, -1, ret)
+        pipe.hincrby(_sname_c,'collection',n)
+        pipe.hincrby(_sname_c,'execute',1)
         pipe.execute()
-
-    cls.rds.hincrby(_sname_c,'collection',n)
-    cls.rds.hincrby(_sname_c,'execute',1)

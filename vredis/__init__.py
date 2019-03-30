@@ -71,11 +71,12 @@ class _Table:
                     yield json.loads(ret)
 
 class _Table2:
-    def __init__(self, sender, taskid, table, limit=-1):
+    def __init__(self, sender, taskid, table, checkstop=False, limit=-1):
         self.sender = sender
         self.taskid = taskid
         self.table  = table
         self.limit  = limit
+        self.checkstop = checkstop
 
     def __iter__(self):
         table = '{}:{}:{}'.format(defaults.VREDIS_DATA, self.taskid, self.table)
@@ -92,13 +93,16 @@ class _Table2:
             return stop
 
         stop = False
+        n = 0
         while lens or not stop:
+            print(lens)
             for _ in range(lens):
                 _, ret = self.sender.rds.brpop(table, defaults.VREDIS_DATA_TIMEOUT)
                 yield json.loads(ret)['data']
-            time.sleep(3)
+            time.sleep(.15)
             lens = self.sender.rds.llen(table)
-            stop = check_stop()
+            n = 0 if lens > 0 else n+1
+            stop = check_stop() if self.checkstop else n >= 15
 
 
 class Pipe:
