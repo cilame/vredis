@@ -156,13 +156,11 @@ class Worker(common.Initer):
                     if err is not None:
                         err_callback,a,kw,_,_,_ = err
                         err_callback(*a,**kw,msg=traceback.format_exc())
-                    if valve.VREDIS_CMDLINE is None: valve.delete(taskid)
-                    TaskEnv.delete(taskid)
                 finally:
                     self.rds.hdel(defaults.VREDIS_WORKER, taskid)
                     if stop is not None:
                         stop_callback,a,kw,_,_,_ = stop
-                        if self._thread_num < defaults.VREDIS_WORKER_THREAD_TASK_NUM:
+                        if self._thread_num < valve.VREDIS_WORKER_THREAD_TASK_NUM:
                             stop_callback(*a,**kw,plus=(valve,TaskEnv))
                         else:
                             print('Warning! More than {} tasks are currently being performed, workerid:{}.' \
@@ -215,8 +213,9 @@ class Worker(common.Initer):
                         if valve.VREDIS_HOOKCRASH is None:
                             # 修改了 hookcrash 传递的方式，现在会更好一点。
                             # 也不会浪费传输资源了。
-                            hookcrash = self.rds.hget(defaults.VREDIS_SENDER, '{}@hookcrash'.format(taskid))
-                            valve.VREDIS_HOOKCRASH = json.loads(hookcrash)
+                            with common.Initer.lock:
+                                hookcrash = self.rds.hget(defaults.VREDIS_SENDER, '{}@hookcrash'.format(taskid))
+                                valve.VREDIS_HOOKCRASH = json.loads(hookcrash)
 
                         if valve.VREDIS_KEEPALIVE:
                             if check_connect_sender(rds, taskid, order['sender_pubn']):

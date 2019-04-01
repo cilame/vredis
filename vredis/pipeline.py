@@ -47,8 +47,7 @@ def send_to_pipeline(cls, taskid, workerid, order, piptype=None, msg=None, plus=
         try:
             while cls.rds.llen(_cache) != 0 or cls.rds.llen(_cname) != 0:
                 time.sleep(defaults.VREDIS_WORKER_WAIT_STOP)
-            if valve.VREDIS_CMDLINE is None:
-                valve.delete(taskid)
+            if valve.VREDIS_CMDLINE is None: valve.delete(taskid)
             TaskEnv.delete(taskid)
             cls.tasklist.remove(taskid)
         except:

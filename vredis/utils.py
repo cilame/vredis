@@ -1,5 +1,6 @@
 import sys
 import inspect
+import json
 from queue import Queue
 from threading import Thread
 #import logging
@@ -327,7 +328,12 @@ for __very_unique_item__ in locals():
                 llock = int(rds.hget(defaults.VREDIS_WORKER, _llock) or 0) # 这应该是最后最后的抗灾回收处理了。
                 if TaskEnv.__taskenv__[taskid]['lock'] == 0 or llock == 0:
                     m, n = 0, 0
-                    if valve.VREDIS_HOOKCRASH is None: return False
+                    if valve.VREDIS_HOOKCRASH is None: 
+                        try:
+                            hookcrash = rds.hget(defaults.VREDIS_SENDER, '{}@hookcrash'.format(taskid))
+                            valve.VREDIS_HOOKCRASH = json.loads(hookcrash)
+                        except:
+                            return False
                     for workerid in valve.VREDIS_HOOKCRASH:
                         # 目前发现一个严重的问题，check_connect_worker 并不一定能检测到是否连接
                         # 所以之前的大部分期望保证任务完整性的开发在这一个redis目前无法解决的问题上只能妥协

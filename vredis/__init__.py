@@ -123,6 +123,7 @@ class Pipe:
         self.DUMPING    = False
         self.QUICK_SEND = True
         self.SPLIT_CNT  = 100 # 当单片任务全部由 sender 端发送时则需要显示当前发送任务量。
+        self.AUTO_IMPORT= True
 
         self.taskqueue  = queue.Queue()
         self.lock       = RLock()
@@ -177,12 +178,19 @@ class Pipe:
 
     # 对脚本魔改，让其在exec中能够找到其他函数，使其内部的原函数和其他函数执行变成将函数任务传入任务队列的函数
     # 有点类似 scrapy yield Request, 但是更为直观和方便。
-    def script_boost(self, taskid, script):
+    def script_boost(self, taskid, script, func):
         allfuncs = dict(re.findall(r'(?:^|\n)def +(\S+) *\(.*?\) *:\n(\s+)',script))
         if not allfuncs: return script
         mkholder = re.sub(r'(^|\n)def +(?P<func>\S+) *\((?P<params>.*?)\) *:\n(?P<prespace>\s+)',
                    r'\1def \g<func>(\g<params>):\n\g<prespace>$__func_\g<func>_placeholder__\n\g<prespace>',script)
+        _imports = []
+        for name,mod in inspect.getclosurevars(func).globals.items():
+            if name == mod.__name__:
+                _imports.append('import {}'.format(name))
+            else:
+                _imports.append('import {} as {}'.format(mod.__name__, name))
         afunc = list(map(lambda i:'{} = pipefunc({},"{}",{})'.format(i,taskid,i,self.pplus[i]),allfuncs))
+        afunc = afunc + _imports if self.AUTO_IMPORT else afunc
         for funcname in allfuncs:
             mkholder = mkholder.replace('$__func_{}_placeholder__'.format(funcname), 
                                         '\n'.join(map(lambda i:'{}{}'.format(allfuncs[funcname],i),afunc)).strip())
@@ -205,7 +213,7 @@ class Pipe:
                     self.sender = self.sender if self.sender is not None else Sender.from_settings(**self.settings)
                     self.tid    = self.sender.get_taskid()
                     self.sender.rds.hset(defaults.VREDIS_WORKER, '{}@stamp'.format(self.tid), int(time.time()))
-                    self.script = self.script_boost(self.tid, self.script)
+                    self.script = self.script_boost(self.tid, self.script, func)
                     if self.QUICK_SEND:
                         # 多线程池任务发送
                         self.quicker_send_task()
@@ -397,6 +405,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.2.3'
+__version__ = '1.2.4'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'
