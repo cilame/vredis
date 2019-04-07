@@ -5,6 +5,7 @@ import queue
 import re
 import os
 import math
+import types
 from threading import Thread, RLock
 
 
@@ -179,16 +180,35 @@ class Pipe:
     # 对脚本魔改，让其在exec中能够找到其他函数，使其内部的原函数和其他函数执行变成将函数任务传入任务队列的函数
     # 有点类似 scrapy yield Request, 但是更为直观和方便。
     def script_boost(self, taskid, script, func):
+        # 经过测试，通过 inspect.getclosurevars(func).globals.items() 有缺陷
+        # 主要的缺陷问题就在于函数的内部函数的内部的参数无法获取，改用下面的方法就可以了。
+        # 下面是我自己的实现，通过下面的这个方法就能更好的查询到需要的自动引用
+        def parse_module(func):
+            p = []
+            coder = func.__code__
+            def _parse(coder):
+                for i in coder.co_names:
+                    p.append(i)
+                for i in coder.co_consts:
+                    if type(i) == types.CodeType:
+                        _parse(i)
+            _parse(coder)
+            for i in p:
+                t = func.__globals__.get(i)
+                if type(t) == types.ModuleType:
+                    yield i,t
         allfuncs = dict(re.findall(r'(?:^|\n)def +(\S+) *\(.*?\) *:\n(\s+)',script))
         if not allfuncs: return script
         mkholder = re.sub(r'(^|\n)def +(?P<func>\S+) *\((?P<params>.*?)\) *:\n(?P<prespace>\s+)',
                    r'\1def \g<func>(\g<params>):\n\g<prespace>$__func_\g<func>_placeholder__\n\g<prespace>',script)
         _imports = []
-        for name,mod in inspect.getclosurevars(func).globals.items():
-            if name == mod.__name__:
-                _imports.append('import {}'.format(name))
-            else:
-                _imports.append('import {} as {}'.format(mod.__name__, name))
+        # for name,mod in inspect.getclosurevars(func).globals.items(): # 带有缺陷，函数内部的函数内部参数无法查询到
+        for name,mod in parse_module(func):
+            if type(mod) == types.ModuleType:
+                if name == mod.__name__:
+                    _imports.append('import {}'.format(name))
+                else:
+                    _imports.append('import {} as {}'.format(mod.__name__, name))
         afunc = list(map(lambda i:'{} = pipefunc({},"{}",{})'.format(i,taskid,i,self.pplus[i]),allfuncs))
         afunc = afunc + _imports if self.AUTO_IMPORT else afunc
         for funcname in allfuncs:
@@ -405,6 +425,6 @@ class Pipe:
 pipe = Pipe()
 
 __author__ = 'cilame'
-__version__ = '1.2.4'
+__version__ = '1.2.5'
 __email__ = 'opaquism@hotmail.com'
 __github__ = 'https://github.com/cilame/vredis'
